@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self';" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEON//REVENANT</title>
+  <link rel="stylesheet" href="src/style.css" />
+  <script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+  <div id="game"></div>
+  <div class="grain"></div><div class="vignette"></div><div id="damage-flash"></div>
+
+  <section id="menu" class="screen active">
+    <div class="menu-rail"><span>NR—09</span><span>10 OPERADORES / 12 SECTORES / 18 JEFES / RELIQUIAS</span><span>BUILD 05.10</span></div>
+    <div class="menu-content">
+      <div class="eyebrow"><i></i> SIGNAL DETECTED / SECTOR 09</div>
+      <h1>NEON<span>//</span><br>REVENANT</h1>
+      <p class="manifesto">LA CIUDAD TE BORRÓ.<br><strong>VUELVE COMO UNA INTERFERENCIA.</strong></p>
+      <div class="menu-buttons">
+        <button id="start-btn" class="primary"><span>ABRIR EL HUB</span><b>↗</b></button>
+        <button id="daily-btn" class="secondary"><span>DESAFÍO DIARIO</span><b>◷</b></button>
+        <button id="skills-btn" class="secondary"><span>ÁRBOL DE HABILIDADES</span><b>✦</b></button>
+        <button id="menu-codex-btn" class="secondary"><span>BIBLIOTECA</span><b>▤</b></button>
+      </div>
+      <div class="menu-meta"><span>SHOOTER / TERCERA PERSONA</span><span>UN JUGADOR</span><span id="menu-daily-chip">DESAFÍO DIARIO —</span></div>
+      <div class="meta-strip">
+        <div><small>PUNTOS DE CLASE</small><b id="menu-credits">0</b></div>
+        <div><small>MEJOR RONDA</small><b id="menu-best-wave">00</b></div>
+        <div><small>INCURSIONES</small><b id="menu-runs">0</b></div>
+        <div><small>RÉCORD</small><b id="best-score">000000</b></div>
+      </div>
+    </div>
+    <div class="controls-card">
+      <div class="card-index">// COMBAT PROTOCOL</div>
+      <div><kbd>WASD</kbd><span>MOVERSE</span></div>
+      <div><kbd>RATÓN</kbd><span>APUNTAR</span></div>
+      <div><kbd>CLIC</kbd><span>DISPARAR</span></div>
+      <div><kbd>CLIC DER.</kbd><span>APUNTAR FINO</span></div>
+      <div><kbd>ESPACIO</kbd><span>SALTAR / DOBLE SALTO</span></div>
+      <div><kbd>SHIFT</kbd><span>DASH</span></div>
+      <div><kbd>R</kbd><span>RECARGAR</span></div>
+      <div><kbd>F</kbd><span>CAMBIAR DE ARMA</span></div>
+      <div><kbd>E</kbd><span>CUERPO A CUERPO</span></div>
+      <div><kbd>G</kbd><span>UTILIDAD</span></div>
+      <div><kbd>X</kbd><span>CAMBIAR UTILIDAD</span></div>
+      <div><kbd>C</kbd><span>INVOCAR GATO</span></div>
+      <div><kbd>TAB</kbd><span>RESUMEN DE BUILD</span></div>
+      <div><kbd>B</kbd><span>BIBLIOTECA</span></div>
+      <div><kbd>Q</kbd><span>SOBRECARGA</span></div>
+      <div><kbd>ESC</kbd><span>PAUSA / MENÚ</span></div>
+      <div><kbd>P</kbd><span>MODO FOTO</span></div>
+      <div><kbd>M</kbd><span>MÚSICA</span></div>
+      <div><kbd>MANDO</kbd><span>COMPATIBLE</span></div>
+    </div>
+    <div class="menu-bottom"><span>AURICULARES RECOMENDADOS</span><button id="menu-music-btn" class="text-btn">MÚSICA: ON</button></div>
+  </section>
+
+  <!-- ================= HUB ================= -->
+  <section id="hub" class="screen">
+    <div class="hub-shell">
+      <header class="hub-top">
+        <div class="hub-brand">N<span>//</span>R<small>HUB DE OPERACIONES</small></div>
+        <nav class="hub-tabs">
+          <button class="active" data-tab="operator">OPERADOR</button>
+          <button data-tab="sector">SECTOR</button>
+          <button data-tab="skills">HABILIDADES</button>
+          <button data-tab="codex">BIBLIOTECA</button>
+          <button data-tab="dossier">REGISTRO</button>
+        </nav>
+        <div class="hub-wallet"><small>PUNTOS DE CLASE</small><b id="hub-points">0</b></div>
+      </header>
+
+      <div class="hub-body">
+        <section class="hub-pane active" data-pane="operator">
+        <div class="pane-head"><div><div class="eyebrow">// REVENANT DATABASE</div><h2>ELIGE TU<br>INTERFERENCIA</h2></div>
+          <p class="pane-note">Cada operador reescribe cómo se juega la incursión: distinto arma, distinta pasiva,<br>distinto árbol. Los puntos que ganes al morir se reinvierten en él.</p></div>
+
+        <div class="op-stage">
+          <aside class="op-roster" id="op-roster"></aside>
+
+          <div class="op-hero" id="op-hero">
+            <div class="op-hero-glow" id="op-hero-glow"></div>
+            <div class="op-hero-portrait" id="op-hero-portrait"></div>
+            <div class="op-hero-info">
+              <div class="eyebrow">// FICHA DE OPERADOR</div>
+              <h2 class="op-hero-name" id="op-hero-name">VANTA</h2>
+              <div class="op-hero-role" id="op-hero-role">ESPECTRO TÁCTICO</div>
+              <p class="op-hero-desc" id="op-hero-desc"></p>
+              <div class="op-hero-passive" id="op-hero-passive"></div>
+              <div class="op-hero-stats" id="op-hero-stats"></div>
+              <div class="op-hero-meta" id="op-hero-meta"></div>
+              <div class="op-hero-foot">
+                <div class="op-hero-record">RÉCORD <b id="op-hero-record">—</b></div>
+                <button class="op-confirm primary" id="op-confirm"><span>SELECCIONAR</span><b>↗</b></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="op-portraits" hidden>
+        </div>
+      </section>
+<section class="hub-pane" data-pane="sector">
+          <div class="pane-head"><div><div class="eyebrow">// SECTOR DEPLOYMENT</div><h2>ELIGE EL<br>SECTOR</h2></div>
+            <p class="pane-note">Un mapa por facción. Ya no rota entre oleadas: la incursión entera<br>ocurre en el sector que elijas, con su clima y sus enemigos.</p></div>
+          <div class="sec-grid" id="sec-grid">
+            <button class="sec-card selected" data-level="rooftop" style="--char:#7fc9bd">
+              <img class="sec-art" src="art/sec_rooftop.jpg" alt="PRADERAS FELICES" loading="lazy">
+              <div class="sec-head"><span>SECTOR 01 // PRAEDIA</span><b>PRADERAS FELICES</b></div>
+              <p>Praderas de bloques a mediodía: mesetas de hierba, cortados de piedra, riachuelos con puentes y un castillo blanco en el horizonte.</p>
+              <div class="sec-tags"><span>ESPACIO ABIERTO</span><span>FRANCOTIRADORES</span><span>ESCUDOS</span></div>
+              <div class="sec-foot"><span>JEFE // WARDEN</span><span class="sec-risk">RIESGO MEDIO</span><span class="sec-reward">×1.00</span></div>
+            </button>
+            <button class="sec-card" data-level="hive" style="--char:#a9c469">
+              <img class="sec-art" src="art/sec_hive.jpg" alt="BOSQUE ENCANTADO" loading="lazy">
+              <div class="sec-head"><span>SECTOR 02 // NEMUS</span><b>BOSQUE ENCANTADO</b></div>
+              <p>Bosque de setas gigantes que brillan. Niebla turquesa, ruinas con musgo y agua que emite luz bajo los pies.</p>
+              <div class="sec-tags"><span>ÁCIDO</span><span>ENJAMBRES</span><span>CUBIERTA</span></div>
+              <div class="sec-foot"><span>JEFE // MATRIARCA</span><span class="sec-risk">RIESGO ALTO</span><span class="sec-reward">×1.15</span></div>
+            </button>
+            <button class="sec-card" data-level="docks" style="--char:#9d8ecb">
+              <img class="sec-art" src="art/sec_docks.jpg" alt="DESIERTO SOLAR" loading="lazy">
+              <div class="sec-head"><span>SECTOR 03 // SOLIS</span><b>DESIERTO SOLAR</b></div>
+              <p>Dunas y mesetas de arena roja bajo un sol partido. Sombra escasa, arena que cruje y ruinas enterradas.</p>
+              <div class="sec-tags"><span>TELEDIRIGIDOS</span><span>ACECHADORES</span><span>BRUMA</span></div>
+              <div class="sec-foot"><span>JEFE // HERALDO</span><span class="sec-risk">RIESGO EXTREMO</span><span class="sec-reward">×1.32</span></div>
+            </button>
+            <button class="sec-card" data-level="spire" style="--char:#7fc9bd">
+              <img class="sec-art" src="art/sec_spire.jpg" alt="CIUDAD CYBERPUNK" loading="lazy">
+              <div class="sec-head"><span>SECTOR 04 // NEXO</span><b>CIUDAD CYBERPUNK</b></div>
+              <p>Rascacielos de bloques y neón vertical. Azoteas de cristal, pasarelas y lluvia violeta sobre el vacío.</p>
+              <div class="sec-tags"><span>VERTICAL</span><span>FRANCOTIRADORES</span><span>DESPEJADO</span></div>
+              <div class="sec-foot"><span>JEFE // ÁRBITRO PRIME</span><span class="sec-risk">RIESGO ALTO</span><span class="sec-reward">×1.18</span></div>
+            </button>
+            <button class="sec-card" data-level="scrapyard" style="--char:#7fc9bd">
+              <img class="sec-art" src="art/sec_scrapyard.jpg" alt="HIELO ETERNO" loading="lazy">
+              <div class="sec-head"><span>SECTOR 05 // GLACIES</span><b>HIELO ETERNO</b></div>
+              <p>Glaciar de bloques azules: plataformas de hielo, grietas profundas y ventisca a ras de suelo.</p>
+              <div class="sec-tags"><span>CUBIERTA</span><span>LABERINTO</span><span>CORTO ALCANCE</span></div>
+              <div class="sec-foot"><span>JEFE // OVERSEER AXIOM</span><span class="sec-risk">RIESGO MEDIO</span><span class="sec-reward">×1.08</span></div>
+            </button>
+            <button class="sec-card" data-level="refinery" style="--char:#a9c469">
+              <img class="sec-art" src="art/sec_refinery.jpg" alt="FÁBRICA INFERNAL" loading="lazy">
+              <div class="sec-head"><span>SECTOR 06 // FORNAX</span><b>FÁBRICA INFERNAL</b></div>
+              <p>Naves de ladrillo, chimeneas encendidas y lava corriendo entre pasarelas de metal.</p>
+              <div class="sec-tags"><span>ÁCIDO</span><span>ZAPADORES</span><span>RESIDUO</span></div>
+              <div class="sec-foot"><span>JEFE // MATRIARCA</span><span class="sec-risk">RIESGO ALTO</span><span class="sec-reward">×1.20</span></div>
+            </button>
+            <button class="sec-card" data-level="undercity" style="--char:#a9c469">
+              <img class="sec-art" src="art/sec_undercity.jpg" alt="RUINAS ANTIGUAS" loading="lazy">
+              <div class="sec-head"><span>SECTOR 08 // RUINA</span><b>RUINAS ANTIGUAS</b></div>
+              <p>Templo devorado por la selva: columnas caídas, escalinatas y agua verdosa entre los bloques.</p>
+              <div class="sec-tags"><span>OSCURIDAD</span><span>CRÍA</span><span>CERRADO</span></div>
+              <div class="sec-foot"><span>JEFE // HIDRA DE POLÍGONO</span><span class="sec-risk">RIESGO EXTREMO</span><span class="sec-reward">×1.35</span></div>
+            </button>
+            <button class="sec-card" data-level="cathedral" style="--char:#9d8ecb">
+              <img class="sec-art" src="art/sec_cathedral.jpg" alt="CASTILLO OSCURO" loading="lazy">
+              <div class="sec-head"><span>SECTOR 07 // NOX</span><b>CASTILLO OSCURO</b></div>
+              <p>Fortaleza de piedra negra con estandartes. Patio de losas, torres altas y una luna roja encima.</p>
+              <div class="sec-tags"><span>COLUMNAS</span><span>ESPECTROS</span><span>ESTÁTICA</span></div>
+              <div class="sec-foot"><span>JEFE // HERALDO</span><span class="sec-risk">RIESGO EXTREMO</span><span class="sec-reward">×1.38</span></div>
+            </button>
+            <button class="sec-card" data-level="terminus" style="--char:#9d8ecb">
+              <img class="sec-art" src="art/sec_terminus.jpg" alt="VOLCÁN ROJO" loading="lazy">
+              <div class="sec-head"><span>SECTOR 09 // IGNIS</span><b>VOLCÁN ROJO</b></div>
+              <p>Cráter abierto y ríos de magma. Ceniza en el aire y roca que se parte bajo las botas.</p>
+              <div class="sec-tags"><span>ANOMALÍA</span><span>BRUMA</span><span>GRIETAS</span></div>
+              <div class="sec-foot"><span>JEFE // ANOMALÍA</span><span class="sec-risk">RIESGO CRÍTICO</span><span class="sec-reward">×1.50</span></div>
+            </button>
+            <button class="sec-card" data-level="greenhouse" style="--char:#5fe6b0">
+              <img class="sec-art" src="art/sec_greenhouse.jpg" alt="ISLA TROPICAL" loading="lazy">
+              <div class="sec-head"><span>SECTOR 10 // AQUA</span><b>ISLA TROPICAL</b></div>
+              <p>Atolón de arena y palmeras rodeado de mar. Agua turquesa, pasarelas de madera y sol alto.</p>
+              <div class="sec-tags"><span>BIOLUMINISCENCIA</span><span>CULTIVO</span><span>HÚMEDO</span></div>
+              <div class="sec-foot"><span>JEFE // FLORACIÓN</span><span class="sec-risk">RIESGO ALTO</span><span class="sec-reward">×1.22</span></div>
+            </button>
+            <button class="sec-card" data-level="foundry" style="--char:#ff9a3d">
+              <img class="sec-art" src="art/sec_foundry.jpg" alt="ESPACIO INFINITO" loading="lazy">
+              <div class="sec-head"><span>SECTOR 11 // ASTRA</span><b>ESPACIO INFINITO</b></div>
+              <p>Asteroide a la deriva: bloques de basalto flotando sobre un cielo estrellado sin fondo.</p>
+              <div class="sec-tags"><span>FUEGO</span><span>METAL FUNDIDO</span><span>CALOR</span></div>
+              <div class="sec-foot"><span>JEFE // FORJA</span><span class="sec-risk">RIESGO EXTREMO</span><span class="sec-reward">×1.40</span></div>
+            </button>
+            <button class="sec-card" data-level="nullspace" style="--char:#d8e6ff">
+              <img class="sec-art" src="art/sec_nullspace.jpg" alt="CIUDAD CELESTIAL" loading="lazy">
+              <div class="sec-head"><span>SECTOR 12 // CAELUM</span><b>CIUDAD CELESTIAL</b></div>
+              <p>Ciudad de mármol blanco entre las nubes. Terrazas flotantes, cúpulas doradas y luz difusa.</p>
+              <div class="sec-tags"><span>GEOMETRÍA ROTA</span><span>ESTÁTICA</span><span>ERROR</span></div>
+              <div class="sec-foot"><span>JEFE // OMEGA</span><span class="sec-risk">RIESGO CRÍTICO</span><span class="sec-reward">×1.55</span></div>
+            </button>
+          </div>
+        </section>
+
+        <section class="hub-pane" data-pane="skills">
+          <div class="pane-head"><div><div class="eyebrow">// NEURO-LATTICE</div><h2>ÁRBOL DE HABILIDADES</h2></div>
+            <div class="skill-side">
+              <div class="skill-char-chips" id="skill-char-chips">
+                <button class="chip active" data-skillchar="vanta">VANTA</button>
+                <button class="chip" data-skillchar="kira">KIRA</button>
+                <button class="chip" data-skillchar="rook">ROOK</button>
+                <button class="chip" data-skillchar="nyx">NYX</button>
+                <button class="chip" data-skillchar="pyre">PYRE</button>
+                <button class="chip" data-skillchar="aegis">AEGIS</button>
+                <button class="chip" data-skillchar="glitch">GLITCH</button>
+                <button class="chip" data-skillchar="seraph">SERAPH</button>
+                <button class="chip" data-skillchar="ronin">RONIN</button>
+                <button class="chip" data-skillchar="cipher">CIPHER</button>
+              </div>
+              <p class="pane-note">Los nodos dorados ya están activos. Los blancos se pueden comprar con<br>puntos de clase. Los grises necesitan antes el nodo anterior del carril.</p>
+            </div>
+          </div>
+          <div class="tree-toolbar">
+            <label class="tree-toggle"><input type="checkbox" id="tree-names" /> <span>Mostrar nombres</span></label>
+            <input type="search" id="tree-search" placeholder="Buscar nodo..." />
+            <div class="tree-legend"><i class="dot owned"></i>ACTIVO<i class="dot ready"></i>DISPONIBLE<i class="dot locked"></i>BLOQUEADO</div>
+            <button id="tree-fit-btn" class="text-btn">CENTRAR</button>
+            <button id="respec-btn" class="text-btn">REINVERTIR (80%)</button>
+          </div>
+          <div id="hub-tree" class="tree-host"></div>
+          <div class="tree-foot">PUNTOS DE CLASE <b id="skill-credits">0</b> <span>· Gánalos al morir: cuanto más lejos llegues, más valen.</span></div>
+        </section>
+
+        <section class="hub-pane" data-pane="codex">
+          <div class="pane-head"><div><div class="eyebrow">// DISCOVERY DATABASE</div><h2>BIBLIOTECA DE<br>DESCUBRIMIENTOS</h2></div>
+            <p class="pane-note">Todo lo que has visto en combate: hostiles, jefes, habilidades,<br>armas y logros. Lo que no conoces aún se muestra en silueta.</p></div>
+          <div class="codex-topbar"><span id="codex-summary">—</span></div>
+          <div id="hub-codex" class="codex-host"></div>
+        </section>
+
+        <section class="hub-pane" data-pane="dossier">
+          <div class="pane-head"><div><div class="eyebrow">// DOSSIER</div><h2>REGISTRO Y<br>AJUSTES</h2></div>
+            <p class="pane-note">Estadísticas acumuladas, dificultad y calibración de la<br>interferencia. Todo se guarda en tu disco.</p></div>
+          <div class="dossier-grid">
+            <div class="doss-card">
+              <h3>ESTADÍSTICAS</h3>
+              <div class="doss-row"><span>INCURSIONES</span><b id="stat-runs">0</b></div>
+              <div class="doss-row"><span>BAJAS TOTALES</span><b id="stat-kills">0</b></div>
+              <div class="doss-row"><span>MEJOR OLEADA</span><b id="stat-wave">00</b></div>
+              <div class="doss-row"><span>MEJOR PUNTUACIÓN</span><b id="stat-score">000000</b></div>
+              <div class="doss-row"><span>PUNTOS DE CLASE</span><b id="stat-points">0</b></div>
+            </div>
+            <div class="doss-card">
+              <h3>DIFICULTAD</h3>
+              <div class="diff-list" id="diff-list"></div>
+            </div>
+            <div class="doss-card">
+              <h3>BALANCE <button id="telemetry-reset" class="text-btn">REINICIAR</button></h3>
+              <div id="telemetry-panel"><div class="doss-row"><span>SIN DATOS AÚN</span><b>—</b></div></div>
+            </div>
+            <div class="doss-card">
+              <h3>MEJORES PARTIDAS <button id="lb-clear" class="text-btn">LIMPIAR</button></h3>
+              <div id="lb-list"></div>
+            </div>
+            <div class="doss-card">
+              <h3>AJUSTES</h3>
+              <label class="set-row"><span>SENSIBILIDAD</span><input type="range" id="set-sens" min="4" max="40" step="1" /><b id="set-sens-val">14</b></label>
+              <label class="set-row"><span>CAMPO DE VISIÓN</span><input type="range" id="set-fov" min="50" max="92" step="1" /><b id="set-fov-val">64</b></label>
+              <label class="set-row"><span>VOLUMEN MÚSICA</span><input type="range" id="set-vol" min="0" max="100" step="1" /><b id="set-vol-val">55</b></label>
+              <label class="set-row"><span>EFECTOS DE PANTALLA</span><input type="checkbox" id="set-fx" checked /><b id="set-fx-val">ON</b></label>
+              <label class="set-row"><span>INVERTIR EJE Y</span><input type="checkbox" id="set-invert" /><b id="set-invert-val">OFF</b></label>
+              <label class="set-row"><span>RADAR DALTÓNICO</span><input type="checkbox" id="set-cb" /><b id="set-cb-val">OFF</b></label>
+              <label class="set-row"><span>PARPADEOS DE PANTALLA</span><input type="checkbox" id="set-flash" checked /><b id="set-flash-val">ON</b></label>
+              <label class="set-row"><span>NÚMEROS DE DAÑO</span><input type="checkbox" id="set-dmg" checked /><b id="set-dmg-val">ON</b></label>
+              <div class="doss-row"><span>RENDER / GPU</span><b id="gpu-name">—</b></div>
+            </div>
+            <div class="doss-card">
+              <h3>CONTROLES</h3>
+              <div class="key-list">
+                <div><kbd>WASD</kbd><span>Moverse</span></div><div><kbd>RATÓN</kbd><span>Apuntar</span></div>
+                <div><kbd>CLIC IZQ</kbd><span>Disparar</span></div><div><kbd>CLIC DER</kbd><span>Apuntar fino</span></div>
+                <div><kbd>ESPACIO</kbd><span>Saltar</span></div><div><kbd>SHIFT</kbd><span>Dash</span></div>
+                <div><kbd>R</kbd><span>Recargar</span></div><div><kbd>F</kbd><span>Cambiar arma</span></div>
+                <div><kbd>E</kbd><span>Cuerpo a cuerpo</span></div><div><kbd>G / X</kbd><span>Utilidad / cambiar</span></div>
+                <div><kbd>C</kbd><span>Gato robot</span></div><div><kbd>TAB</kbd><span>Resumen de build</span></div>
+                <div><kbd>B</kbd><span>Biblioteca</span></div><div><kbd>Q</kbd><span>Sobrecarga</span></div>
+                <div><kbd>ESC</kbd><span>Pausa</span></div><div><kbd>P</kbd><span>Modo foto</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="hub-footer">
+        <button id="hub-back" class="text-btn">← MENÚ PRINCIPAL</button>
+        <div class="hub-summary" id="hub-summary">VANTA // PRADERAS FELICES // VETERANO</div>
+        <button id="hub-deploy" class="primary"><span>DESPLEGAR</span><b>↗</b></button>
+      </footer>
+    </div>
+  </section>
+
+  <div id="hud" class="hidden">
+    <header class="hud-top">
+      <div class="brand-mini">N<span>//</span>R <small id="character-hud">VANTA // REVENANT OS</small></div>
+      <div class="wave-box"><small id="sector-label">PRADERAS FELICES</small><b>OLEADA <span id="wave">01</span></b><div id="enemy-count">04 HOSTILES</div><div id="round-tier">NVL 01 // CONTACTO</div><div id="obj-line" class="hidden">—</div></div>
+      <div class="score-box"><small>PUNTUACIÓN</small><b id="score">000000</b><span id="combo">×1.0 SINCRONÍA</span></div>
+      <div class="chips-box"><small>CHIPS</small><b id="chips">0</b></div>
+      <button id="hud-menu-btn" class="hud-btn">☰ MENÚ <kbd>ESC</kbd></button>
+    </header>
+    <div id="boss-wrap" class="hidden"><span id="boss-name">WARDEN // UNIDAD DE EXTERMINIO</span><div><i id="boss-health"></i></div></div>
+    <div id="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
+    <div id="hitmarker">×</div>
+    <div id="killfeed"></div>
+    <div id="modifier-banner"></div>
+    <div id="lowhp"></div>
+    <div id="waypoint"><svg viewBox="0 0 24 24"><path d="M12 2l9 20-9-6-9 6z"/></svg><span>CAJA</span></div>
+    <div class="hud-bottom">
+      <div class="vitals">
+        <div class="section-label">INTEGRIDAD <span id="hp-number">100</span></div>
+        <div class="health-track"><i id="health-bar"></i></div>
+        <div id="shield-line" class="hidden"><span>ESCUDO</span><div><i id="shield-bar"></i></div></div>
+        <div class="dash-line"><span>IMPULSO</span><div><i id="dash-bar"></i></div><kbd>SHIFT</kbd></div>
+        <div id="frenzy-wrap"><span>FRENESÍ</span><div><i id="frenzy-bar"></i></div></div>
+        <div id="loadout"></div>
+      </div>
+      <div id="overdrive"><div class="overdrive-ring"><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26"></circle><circle id="charge-ring" cx="30" cy="30" r="26"></circle></svg><b>Q</b></div><span>SOBRECARGA<small id="charge-text">0%</small></span></div>
+      <div class="weapon">
+        <div class="weapon-name" id="weapon-name">VXR—9 <span>PULSE SMG</span></div>
+        <div class="ammo"><b id="ammo">24</b><span>/ ∞</span></div>
+        <div id="reload-text">MUNICIÓN DE FASE</div>
+        <div class="slot-line"><kbd>E</kbd><span id="melee-name">⚔ HOJA DE FASE</span><b id="melee-cd">E</b></div>
+        <div class="slot-line"><kbd>G</kbd><span id="utility-name">◍ GRANADA DE PULSO</span></div>
+        <div class="slot-line cat-line" id="cat-status">❥ GATO-9 LISTO [C]</div>
+        <div class="weapon-keys"><kbd id="weapon-swap-hint">F // SIN ARMAS EXTRA</kbd><kbd>TAB // BUILD</kbd><kbd>B // BIBLIOTECA</kbd></div>
+      </div>
+    </div>
+    <div id="wave-banner"><small>PROTOCOLO DE COMBATE</small><b>OLEADA 01</b><span>ELIMINA TODAS LAS SEÑALES HOSTILES</span></div>
+    <div id="announcement"></div>
+    <div class="minimap"><div class="radar-sweep"></div><i class="player-dot"></i><div id="radar-dots"></div><span>N</span></div>
+  </div>
+
+  <section id="pause" class="screen overlay">
+    <div class="modal"><div class="eyebrow">// SYSTEM SUSPENDED</div><h2>PAUSA</h2><p>La señal sigue viva.</p>
+      <button id="resume-btn" class="primary"><span>VOLVER AL COMBATE</span><b>↗</b></button>
+      <button id="restart-pause-btn" class="secondary">REINICIAR SECTOR</button>
+      <button id="pause-menu-btn" class="secondary">VOLVER AL HUB</button>
+      <button id="music-btn" class="secondary">MÚSICA: ON</button>
+      <button id="fullscreen-btn" class="secondary">PANTALLA COMPLETA</button>
+      <button id="quit-btn" class="text-btn">SALIR DE LA APLICACIÓN</button>
+    </div>
+  </section>
+
+  <section id="loot" class="screen overlay">
+    <div class="loot-modal">
+      <div class="eyebrow">// SPECIAL SUPPLY CRATE</div>
+      <div class="loot-icon" id="loot-icon">✧</div>
+      <div class="loot-kind" id="loot-kind">HABILIDAD ESPECIAL</div>
+      <h2 id="loot-name">MASCOTA WRAITH</h2>
+      <div class="loot-sub" id="loot-sub">PERMANENTE</div>
+      <p class="loot-desc" id="loot-desc"></p>
+      <div class="loot-how"><small>CÓMO FUNCIONA</small><span id="loot-how"></span></div>
+      <div class="loot-synergy hidden" id="loot-synergy"><small>SINERGIA</small><b id="loot-synergy-name"></b><span id="loot-synergy-desc"></span></div>
+      <button id="loot-equip-btn" class="primary"><span>EQUIPAR Y SEGUIR</span><b>↗</b></button>
+    </div>
+  </section>
+
+  <section id="upgrade" class="screen overlay">
+    <div class="upgrade-panel">
+      <aside class="build-panel"><div class="eyebrow">// CURRENT BUILD</div><h3 id="build-character">VANTA</h3><div id="build-stats"></div><div class="build-mods"><small>MUTACIONES INSTALADAS</small><div id="build-mods">SIN MUTACIONES</div></div></aside>
+      <div class="upgrade-main"><div class="eyebrow">// SECTOR PURGED</div><h2>MÓDULO<br>DISPONIBLE</h2><p>Instala un módulo de una familia. Al acumular niveles se encienden resonancias de set; con el arma base y su módulo saturado, el arma evoluciona.</p><div id="upgrade-options"></div><div id="pact-offer"></div></div>
+      <aside class="upgrade-side">
+        <button id="reroll-btn"><span>↻</span><b>RECONFIGURAR</b><small id="reroll-count">2 RESTANTES</small></button>
+        <div class="next-wave-box"><small>PRÓXIMA OLEADA</small><b id="next-wave">02</b></div>
+      </aside>
+      <aside class="slot-panel">
+        <div class="slot-machine">
+          <div class="slot-title">TRAGAPERRAS DE SUMINISTROS</div>
+          <div class="slot-reels"><span id="reel-1">◆</span><span id="reel-2">◆</span><span id="reel-3">◆</span></div>
+          <div class="slot-labels"><span id="label-1">?</span><span id="label-2">?</span><span id="label-3">?</span></div>
+          <button id="slot-spin"><b>GIRAR · 250 CHIPS</b><small>3 IGUALES = JACKPOT</small></button>
+          <div class="slot-chips">TUS CHIPS: <b id="slot-chips">0</b></div>
+          <div class="slot-result" id="slot-result">Gira los tres carretes. Tres símbolos iguales dan el jackpot; dos iguales dan un premio parcial.</div>
+          <ul class="slot-rules" id="slot-rules"></ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="gameover" class="screen overlay">
+    <div class="modal gameover-modal"><div class="eyebrow">// CONNECTION TERMINATED</div><h2>SEÑAL<br>PERDIDA</h2>
+      <p class="modal-sub death-cause" id="death-cause">—</p>
+      <div class="stats"><div><small>PUNTUACIÓN</small><b id="final-score">000000</b></div><div><small>BAJAS</small><b id="final-kills">00</b></div><div><small>OLEADA</small><b id="final-wave">01</b></div></div>
+      <div class="credit-line">PUNTOS DE CLASE GANADOS <b id="credits-earned">+0</b> <span>TOTAL <b id="credits-total">0</b></span></div>
+      <button id="restart-btn" class="primary"><span>RECONSTRUIR SEÑAL</span><b>↗</b></button>
+      <button id="menu-btn" class="secondary">VOLVER AL HUB</button>
+      <button id="skills-btn-gameover" class="secondary">IR AL ÁRBOL DE HABILIDADES</button>
+    </div>
+  </section>
+
+  <section id="worldclear" class="screen overlay">
+    <div class="modal gameover-modal"><div class="eyebrow">// SECTOR DOMINATED</div><h2>MUNDO<br>DOMINADO</h2>
+      <p class="modal-sub" id="worldclear-sub">15 rondas y los tres jefes del sector. El mundo está limpio.</p>
+      <div class="stats"><div><small>PUNTUACIÓN</small><b id="wc-score">000000</b></div><div><small>BAJAS</small><b id="wc-kills">00</b></div><div><small>RONDAS</small><b id="wc-wave">15</b></div></div>
+      <div class="credit-line">PUNTOS DE CLASE GANADOS <b id="wc-earned">+0</b> <span>TOTAL <b id="wc-total">0</b></span></div>
+      <button id="wc-continue" class="primary"><span>SEGUIR EN INFINITO</span><b>↗</b></button>
+      <button id="wc-extract" class="secondary">EXTRAER Y VOLVER AL HUB</button>
+    </div>
+  </section>
+
+  <!-- Biblioteca en partida (tecla B) -->
+  <section id="codex" class="screen overlay">
+    <div class="codex-modal">
+      <div class="codex-head">
+        <div><div class="eyebrow">// DISCOVERY DATABASE</div><h2>BIBLIOTECA</h2></div>
+        <div class="codex-head-right"><span id="codex-count">—</span><button id="codex-close" class="secondary">CERRAR [B]</button></div>
+      </div>
+      <div id="codex-body" class="codex-host scroll"></div>
+    </div>
+  </section>
+
+  <!-- Resumen de build (tecla TAB) -->
+  <section id="buildsum" class="screen overlay">
+    <div class="buildsum-modal">
+      <div class="codex-head">
+        <div><div class="eyebrow">// CURRENT BUILD</div><h2>RESUMEN DE BUILD</h2></div>
+        <button id="buildsum-close" class="secondary">CERRAR [TAB]</button>
+      </div>
+      <div id="buildsum-body" class="buildsum-body"></div>
+    </div>
+  </section>
+
+  <div id="boot"><div class="boot-logo">N//R</div><div class="boot-track"><i></i></div><span>INICIALIZANDO REVENANT OS</span></div>
+  <script type="module" src="src/game.js"></script>
+</body>
+</html>

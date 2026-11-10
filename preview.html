@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <title>NEON//REVENANT — visor de escenarios</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0a0a12; overflow: hidden; }
+    canvas { display: block; }
+    #tag {
+      position: fixed; left: 22px; top: 18px; z-index: 5; color: #fff;
+      font: 900 26px/1.1 Arial, Helvetica, sans-serif; letter-spacing: .04em;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, .75); pointer-events: none;
+    }
+    #tag small { display: block; font: 700 12px/1.6 monospace; opacity: .8; letter-spacing: .18em; }
+  </style>
+  <script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head>
+
+<body>
+  <div id="tag"><span id="w-name">—</span><small id="w-id">—</small></div>
+  <script>
+    window.addEventListener("error", e => console.log("PAGE_ERROR: " + (e.message || e)));
+    window.addEventListener("unhandledrejection", e => console.log("PAGE_REJECT: " + (e.reason && e.reason.message || e.reason)));
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { buildWorld, worldArt, updateWorld } from './src/worlds.js';
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(1);
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.LinearToneMapping;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.5, 900);
+
+    // Cielo con gradiente vertical (el mismo truco que el juego).
+    const skyCv = document.createElement('canvas');
+    skyCv.width = 8; skyCv.height = 256;
+    const skyCtx = skyCv.getContext('2d');
+    const skyTex = new THREE.CanvasTexture(skyCv);
+    skyTex.colorSpace = THREE.SRGBColorSpace;
+    scene.background = skyTex;
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 2);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffffff, 3);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    const sc = sun.shadow.camera;
+    sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 1; sc.far = 260;
+    sun.shadow.bias = -0.0006;
+    scene.add(sun);
+    scene.add(sun.target);
+    // Relleno frío desde el lado opuesto: la sombra del sol tiene que tener
+    // color, si no el lado oscuro se queda gris y plano.
+    const fill = new THREE.DirectionalLight(0x9fc4ff, 0.9);
+    fill.position.set(-60, 30, -40);
+    scene.add(fill);
+
+    // Etalonaje final: saturación, contraste y viñeta. Es el paso que separa
+    // una captura de motor de una ilustración: sube el color y hunde los bordes.
+    const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter
+    });
+
+    const quadScene = new THREE.Scene();
+    const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const gradeMat = new THREE.ShaderMaterial({
+      uniforms: {
+        tDiffuse: { value: rt.texture },
+        sat: { value: 1.14 }, contrast: { value: 1.03 },
+        lift: { value: 0.02 }, vig: { value: 0.18 }
+      },
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+      fragmentShader: `
+        uniform sampler2D tDiffuse; uniform float sat, contrast, lift, vig;
+        varying vec2 vUv;
+        // El render target guarda luz lineal: hay que codificarla a sRGB antes
+        // de etalonar, que es como trabaja cualquier ajuste de color.
+        vec3 lin2srgb(vec3 c){
+          return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0/2.4)) - 0.055,
+                     step(vec3(0.0031308), c));
+        }
+        void main(){
+          vec3 c = lin2srgb(texture2D(tDiffuse, vUv).rgb);
+          float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+          c = mix(vec3(l), c, sat);
+          c = (c - 0.5) * contrast + 0.5 + lift;
+          float d = distance(vUv, vec2(0.5)) * 1.42;
+          c *= 1.0 - vig * d * d * d;
+          gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+        }`,
+      depthTest: false, depthWrite: false, toneMapped: false
+    });
+    quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), gradeMat));
+
+    let group = null;
+
+    function paintSky(a) {
+      const g = skyCtx.createLinearGradient(0, 0, 0, 256);
+      g.addColorStop(0, '#' + a.skyTop.toString(16).padStart(6, '0'));
+      g.addColorStop(0.55, '#' + a.sky.toString(16).padStart(6, '0'));
+      g.addColorStop(1, '#' + a.fog.toString(16).padStart(6, '0'));
+      skyCtx.fillStyle = g; skyCtx.fillRect(0, 0, 8, 256);
+      skyTex.needsUpdate = true;
+    }
+
+    // Encuadre 3/4 parecido al de las referencias: se ve el escalonado del
+    // terreno y el horizonte, no solo el suelo.
+    const CAM = { pos: [0, 30, 57], look: [0, 10, -8] };
+
+    function setWorld(id) {
+      const art = worldArt(id);
+      if (group) { scene.remove(group); group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); group = null; }
+      const holder = new THREE.Group();
+      scene.add(holder);
+      buildWorld(id, holder, Math.random, [], []);
+      group = holder;
+      paintSky(art);
+      scene.fog = new THREE.FogExp2(art.fog, art.fogDensity);
+      hemi.color.setHex(art.hemiSky);
+      hemi.groundColor.setHex(art.hemiGround);
+      hemi.intensity = art.hemiInt;
+      sun.color.setHex(art.sun);
+      sun.intensity = art.sunInt;
+      sun.position.set(art.sunPos[0], art.sunPos[1], art.sunPos[2]);
+      sun.target.position.set(0, 0, 0);
+      fill.color.setHex(art.fillA);
+      fill.intensity = art.sunInt * 0.26;
+      renderer.toneMappingExposure = art.exposure;
+      document.getElementById('w-name').textContent = id.toUpperCase();
+      document.getElementById('w-id').textContent = 'SECTOR / ' + id;
+      return true;
+    }
+
+    function frame(pos, look) {
+      camera.position.set(pos[0], pos[1], pos[2]);
+      camera.lookAt(look[0], look[1], look[2]);
+      renderer.setRenderTarget(rt);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      const oc = renderer.outputColorSpace;
+      renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+      renderer.render(quadScene, quadCam);
+      renderer.outputColorSpace = oc;
+    }
+
+    window.__setWorld = setWorld;
+    window.__setCam = (p, l) => { CAM.pos = p; CAM.look = l; frame(p, l); };
+    window.__render = () => frame(CAM.pos, CAM.look);
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      rt.setSize(innerWidth, innerHeight);
+      frame(CAM.pos, CAM.look);
+    });
+
+    const q = new URLSearchParams(location.search);
+    setWorld(q.get('world') || 'rooftop');
+    frame(CAM.pos, CAM.look);
+
+    let t0 = performance.now();
+    function tick() {
+      const t = (performance.now() - t0) / 1000;
+      updateWorld(t);
+      frame(CAM.pos, CAM.look);
+      requestAnimationFrame(tick);
+    }
+    tick();
+    window.__READY = true;
+  </script>
+</body>
+
+</html>

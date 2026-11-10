@@ -1,0 +1,36 @@
+{
+  "name": "neon-revenant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NEON//REVENANT - a kinetic third-person arena shooter",
+  "main": "main.cjs",
+  "author": "NEON//REVENANT",
+  "scripts": {
+    "start": "node scripts/start.cjs",
+    "dev": "node scripts/start.cjs --enable-logging",
+    "check": "node --check main.cjs && node --check src/game.js && node --check src/content.js && node --check src/meta.js && node --check src/bosses.js && node --check src/props.js && node --check src/codex.js && node --check src/loadout.js && node --check src/facades.js && node --check scripts/start.cjs",
+    "dist": "electron-builder",
+    "dist-dir": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.neonrevenant.game",
+    "productName": "NEON REVENANT",
+    "directories": { "output": "dist" },
+    "files": [
+      "main.cjs",
+      "index.html",
+      "src/**/*",
+      "node_modules/three/**",
+      "package.json"
+    ],
+    "win": { "target": ["nsis", "portable"] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+  },
+  "dependencies": {
+    "neon-revenant": "file:",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0"
+  }
+}

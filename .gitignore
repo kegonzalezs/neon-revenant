@@ -1,0 +1,27 @@
+# Dependencias y builds (se regeneran con npm install / npm run dist)
+node_modules/
+dist/
+out/
+build/
+
+# Capturas y artefactos de las pruebas de desarrollo
+shots/
+*-smoke.png
+window-open.png
+live-01.png
+smoke-log.txt
+*.log
+
+# Lanzador local: contiene una ruta absoluta a la instalacion de WorkBuddy.
+# Para clonar el proyecto se usa "npm start".
+JUGAR.cmd
+
+# Configuracion local y secretos
+.env
+.env.*
+!.env.example
+.workbuddy-ai/
+
+# Sistema operativo y editores
+Thumbs.db
+.DS_Store

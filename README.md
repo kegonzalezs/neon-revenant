@@ -6,22 +6,29 @@
 
 ## Que es
 
-NEON//REVENANT es un juego de accion 3D en tercera persona: eliges un operador,
-sobrevives a oleadas de hostiles y vas construyendo tu build con armas,
-habilidades, evoluciones y reliquias. Todo el contenido se genera en codigo:
-modelos, escenarios, effects y HUD, sin assets externos pesados.
+NEON//REVENANT es un juego de accion 3D en tercera persona: eliges un heroe,
+sobrevives a oleadas de hostiles y vas construyendo tu build con habilidades,
+evoluciones y reliquias. La interfaz, el combate y los efectos se generan en
+codigo; los heroes, sus armas y los escenarios usan modelos GLB y kits de
+piezas 3D estilo voxel incluidos en `assets/`.
 
 ![Gameplay](docs/screenshot-gameplay.png)
 
 ## Contenido
 
-- **10 operadores** con modelo 3D, perk propio y arbol de habilidades.
-- **20 armas** con elementos (burn, chain, slow, ricochet) y **33 evoluciones**.
-- **33 habilidades**, 16 reliquias, 8 cuerpo a cuerpo, 8 utilidades y 8 objetivos.
-- **6 facciones** y **18 jefes** con fases y mecanicas propias.
-- **12 sectores** con bioma, cielo, utileria y paleta diferenciados.
-- 20 logros, 14 modificadores, 6 dificultades, sistema de tienda y records.
-- Calidad grafica adaptativa, bloom, sombras y musica sintetizada en tiempo real.
+- **5 heroes definitivos** (Vanta, Kira, Seraph, Ronin y Glitch), cada uno con
+  modelo GLB propio y **un arma unica** con modelo y ancla de disparo reales.
+- **Arbol de habilidades**, evoluciones y reliquias para construir tu build.
+- **12 sectores** de progresion resueltos sobre **7 mundos** construidos con
+  kits de piezas (naturaleza, nieve, minimercado, barrio, estacion, espacio y
+  hexagono), con arquitectura modular (`src/worlds/`) y fallback voxel
+  temporal para los mundos aun no implementados.
+- **18 jefes** con fases y mecanicas propias; facciones, logros,
+  modificadores, dificultades, tienda y records.
+- Sistema de sonido real con Web Audio: banco de **124 efectos** (Kenney RPG
+  Audio + Sci-Fi Sounds) y musica sintetizada en tiempo real.
+- Particulas y proyectiles nuevos con object pooling, bloom y calidad
+  grafica adaptativa.
 
 ## Requisitos
 
@@ -55,25 +62,33 @@ abrir `preview.html` en un navegador para ver las tarjetas de los sectores.
 
 ```
 index.html        Interfaz, menus y HUD
-main.cjs          Proceso principal de Electron
-preload.cjs       Puente de precarga
+main.cjs          Proceso principal de Electron y utilidades de captura
+preload.cjs       Puente de precarga (IPC)
 src/game.js       Bucle de juego, combate y render
-src/operators.js  Operadores y armas
-src/enemies.js    Hostiles y modelos
-src/bosses.js     Jefes
-src/worlds.js     Sectores y generacion de niveles
-src/voxel.js      Motor de terreno y cielo
-src/content.js    Tablas de contenido y reglas
+src/glb-character.js  Carga de los modelos GLB de los heroes
+src/weapons.js    Arsenal unico por heroe (GLB + ancla de disparo)
+src/combat-particles.js  Particulas de combate
+src/combat-projectiles.js  Proyectiles con object pooling
+src/sfx.js        Efectos de sonido (Web Audio)
+src/operators.js  Cuerpos y balance de los operadores
+src/content.js    Tablas de contenido: roster, sectores, habilidades
+src/arsenal.js    Evoluciones y reliquias
+src/worlds.js     Sectores y generacion de niveles (fallback voxel)
+src/worlds/       Arquitectura modular: registry + builders de los 7 mundos
+src/WorldManager.js  Gestor de construccion de mundos
 src/style.css     Estilos y HUD
-scripts/          Utilidades de prueba, captura y diagnostico
-art/              Tarjetas de los 12 sectores
+scripts/          Utilidades de prueba, captura y generacion de assets
+assets/           Modelos GLB, audio, texturas, UI y fuentes
+art/              Tarjetas de los sectores
 docs/             Capturas que usa este README
 ```
 
 ## Notas
 
-- El repositorio **no incluye** `node_modules/`, builds ni las capturas de las
-  pruebas; todo eso se regenera en local.
+- El repositorio **no incluye** `node_modules/`, builds, las capturas de las
+  pruebas ni `kenney_src/` (el pack fuente de piezas que usan los scripts de
+  Python para generar los assets optimizados de `assets/worlds/`); todo eso
+  se regenera en local.
 - El lanzador `JUGAR.cmd` usado durante el desarrollo apunta a una instalacion
   local de Node y por eso no se versiona. En su lugar, usa `npm start`.
 - Proyecto personal en desarrollo activo: puede haber cambios importantes entre

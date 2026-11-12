@@ -10,19 +10,24 @@
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 import { WorldBuilder, ARENA, jit, shadeHex, mixHex, buildSky, blockFace } from './voxel.js';
+import { natureReady } from './nature-kit.js';
+import { populateNature } from './nature-world.js';
 
 // ---------------------------------------------------------------------------
 // Arte por mundo: cielo, niebla, sol, relleno y post-proceso.
 // ---------------------------------------------------------------------------
 export const WORLD_ART = {
-  // 1 · PRADERAS FELICES
+  // 1 · PRADERAS FELICES — bosque encantado del Nature Kit.
+  // Luz direccional cálida + hemisfera + ambiente suave, y FogExp2 verdoso
+  // para que los tres anillos de bosque se desvanezcan en profundidad.
   rooftop: {
-    sky: 0x3fa2ff, skyTop: 0x1668d8, fog: 0xcfe9ff, fogDensity: 0.0022,
-    hemiSky: 0xdcefff, hemiGround: 0x6a9a44, hemiInt: 0.88,
-    sun: 0xfff4d8, sunInt: 4.3, sunPos: [38, 64, 44],
-    fillA: 0xffe6b8, fillB: 0x9fd4ff, fillInt: 12,
-    bloom: 0.10, exposure: 1.24, rain: 0,
-    floor: 0x6fbe35, platform: 0x7f8b98, trim: 0x9be05a, trim2: 0xffd45e
+    sky: 0x8fd0f0, skyTop: 0x4c92d8, fog: 0xc6dfc8, fogDensity: 0.0062,
+    hemiSky: 0xe4f4ff, hemiGround: 0x4d8c3a, hemiInt: 1.05,
+    ambient: 0.34, ambientColor: 0xffe9c0,
+    sun: 0xffdfa0, sunInt: 3.6, sunPos: [38, 64, 44],
+    fillA: 0xffe0a8, fillB: 0xa8d8ff, fillInt: 9,
+    bloom: 0.08, exposure: 1.12, rain: 0,
+    floor: 0x4d8c3a, platform: 0x3f6b31, trim: 0xa8d86a, trim2: 0xffd45e
   },
   // 2 · BOSQUE ENCANTADO
   hive: {
@@ -198,149 +203,30 @@ function treeLine(w, n, x0, x1, z0, z1, y, s0 = 1, s1 = 1.6) {
 // ===========================================================================
 // 1 · PRADERAS FELICES
 // ===========================================================================
+// ===========================================================================
+// 1 · PRADERAS FELICES — Mundo 1, reconstruido con el Kenney Nature Kit
+// ===========================================================================
+// Antes era un diorama de bloques: mesetas, gargantas, puentes, cascadas y un
+// castillo de voxel. Ahora es una pradera continua de modelos 3D reales. El
+// constructor voxel solo levanta el suelo firme y la plataforma de colisión;
+// todo el contenido visual (vegetación, cobertura, vallas y bosque de borde)
+// lo añade populateNature() con InstancedMesh. Ver src/nature-world.js.
 function praderas(w) {
-  const GR = P.grass, ST = P.stone, WD = P.wood;
-  w.waterColor = 0x1f9fd8;
-  w.waterGlow = 0.14;
-  w.waterFloor = -2.6;
+  const GRASS = 0x4d8c3a, EARTH = 0x3f6b31;
 
-  // ---------------------------------------------------------------- terreno
-  // La referencia no es un archipiélago de islas sueltas: es una meseta continua
-  // con gargantas excavadas. Por eso se levanta primero el altiplano entero y
-  // después se corta el agua, que es lo que deja ver los cortados de piedra.
-  w.slab(0, 0, ARENA * 2, ARENA * 2, 0, GR, ST);
+  // Una sola losa plana: sin escalones ni canales, que es lo que deja kiting
+  // limpio cuando hay cientos de enemigos en pantalla.
+  w.slab(0, 0, ARENA * 2, ARENA * 2, 0, GRASS, EARTH, { noWall: true });
 
-  // Terrazas. La central es el campo de batalla; el resto, miradores.
-  w.slab(-4, 17.5, 44, 17, 1.5, GR, ST);      // delantera
-  w.slab(0, 1, 30, 16, 5.0, GR, ST);          // central
-  w.slab(-12, -17.5, 28, 17, 9.0, GR, ST);    // arco con estandartes
-  w.slab(27, 6, 18, 22, 5.0, GR, ST);         // derecha (árbol grande)
-  w.slab(-33, 14, 6, 20, 4.0, GR, ST);        // izquierda alta
-  w.slab(20, -36, 28, 20, 10.0, GR, ST);      // colina del castillo
-  w.slab(20, -38, 18, 12, 12.0, GR, ST);      // segundo escalón
-  w.slab(20, -39, 13, 9, 13.5, GR, ST);       // remate de la colina
+  // Suelo de relleno hasta el horizonte: sin él, el bosque perimetral flotaría
+  // sobre el vacío. Queda 0,12 por debajo de la arena para no tapar el césped.
+  w.blk('ground', 0, -3.12, 0, 620, 6, 620, 0x3d7535);
 
-  // Gargantas. Van después de las terrazas para que las recorten de verdad.
-  w.channel(0, 36, ARENA * 2, 20, -7.0, -3.4, P.bed);   // río delantero
-  w.channel(-41, 6, 12, 58, -7.0, -3.4, P.bed);         // brazo izquierdo
-  w.channel(17, 2, 5, 26, -7.0, -3.4, P.bed);           // foso central/derecha
-  w.channel(35, 26, 22, 20, -7.0, -3.4, P.bed);         // charca derecha
-  w.channel(-9, 24, 14, 7, -7.0, -3.4, P.bed);          // entrante del puente
-
-  // ---------------------------------------------------------------- camino
-  // Un solo camino de tierra que cruza el campo y sube hacia el arco: en la
-  // referencia es la línea que ordena toda la composición.
-  w.paint(0, 2, 7, 15, P.path);
-  w.paint(-7, 5, 14, 6, P.path);
-  w.paint(8, -1, 13, 5, P.path);
-  w.paint(1, -8, 5, 8, P.path);
-  w.paint(-4, 14, 8, 8, P.path);
-
-  // ---------------------------------------------------------------- escaleras
-  // Escalones de 0,5: se suben andando, sin salto.
-  w.slab(-12, -10.5, 8, 7, 5.0, GR, ST);       // hueco donde encaja la escalera
-  w.stairs(-12, -7, Math.PI / 2, 8, 0.5, 5, ST, 1, 5.0);
-  w.stairs(8, 15, Math.PI / 2, 7, 0.5, 4, ST, 1, 1.5);
-  w.stairs(18.4, 18, 0, 3, 0.5, 4, ST, 1, 0);
-  w.stairs(-26.4, 2, 0, 8, 0.5, 4, ST, -1, 0);
-  w.stairs(22, 16.6, 0, 3, 0.5, 4, ST, 1, 5.0);
-
-  // ---------------------------------------------------------------- puentes
-  // Puente de tablones sobre el entrante del río, con la cascada detrás.
-  w.bridge(-9, 24, 8, Math.PI / 2, 1.6, 3.4, WD, P.woodD);
-  w.waterfall(-9, 20.4, 1.5, -3.4, 13, 0);
-  // Puente sobre el foso, entre la meseta central y la derecha.
-  w.bridge(17, 4, 6.5, 0, 5.1, 3.4, WD, P.woodD);
-  // Pasarela de piedra hacia el arco.
-  w.stoneBridge(-12, -13.6, 6, 0, 9.0, 3, ST, 0x6f9a52);
-
-  // ---------------------------------------------------------------- cascadas
-  // Caen del borde de cada terraza al agua: son las líneas verticales que
-  // sujetan la composición de la referencia.
-  w.waterfall(6, 26.2, 1.5, -3.4, 5, 0);
-  w.waterfall(-20, 26.2, 1.5, -3.4, 4, 0);
-  w.waterfall(-35.6, 12, 4.0, -3.4, 6, Math.PI / 2);
-  w.waterfall(18.2, 8, 5.0, -3.4, 5, Math.PI / 2);
-  w.waterfall(27, 17.2, 5.0, -3.4, 4, 0);
-  w.waterfall(26.2, -4, 5.0, -3.4, 4, Math.PI / 2);
-  w.waterfall(-7, -9.2, 9.0, -3.4, 3, 0);
-
-  // ---------------------------------------------------------------- arco
-  // Arco de piedra con dos estandartes azules: el hito del escenario.
-  w.arch(-12, -18, 9.0, 0, 1.15, 0x9aa2ac, 0x6f9a52, 0x4fc8ff);
-  w.pillar(-22, -20, 9.0, 3, 0.9, 0x9aa2ac, 0x6f9a52);
-  w.pillar(-2, -21, 9.0, 2, 0.9, 0x9aa2ac, 0x6f9a52);
-
-  // ---------------------------------------------------------------- castillo
-  castleBody(w, 22, -40, 13.5, 0.86, 0xffffff, 0x7f9bff, 0x6fe0ff);
-  treeLine(w, 3, 8, 16, -46, -42, 10, 1.1, 1.4);
-  
-
-  // ---------------------------------------------------------------- vegetación
-  w.tree(-33, 10, 4.0, 2.0);            // árbol alto de la izquierda
-  w.tree(31, 4, 5.0, 1.9);              // árbol grande de la derecha
-  w.tree(-24, -22, 9.0, 1.5);
-  w.tree(-2, -24, 9.0, 1.4);
-  treeLine(w, 3, -34, -24, -32, -20, 0, 1.3, 1.7);
-  treeLine(w, 3, -20, -6, 22, 26, 1.5, 1.2, 1.6);
-  w.tree(-31, 22, 4.0, 1.6);
-
-  // Vallados de madera en los bordes de las terrazas.
-  w.fence(-9, 26.4, 10, 0, 1.5, WD);
-  w.fence(-22, 26.4, 10, 0, 1.5, WD);
-  w.fence(31, -5, 12, Math.PI / 2, 5.0, WD);
-  w.fence(18.4, 12, 10, 0, 1.5, WD);
-  w.fence(-12, -6.4, 12, 0, 5.0, WD);
-
-  // Detalle vegetal, cajas y bloques sueltos.
-  w.flowers(-6, 12, 1.5, 10, 5, [0xff5a9e, 0xffffff, 0xffe45c]);
-  w.flowers(6, 16, 1.5, 8, 4, [0xff5a9e, 0xffffff]);
-  w.flowers(-2, -2, 5.0, 9, 5);
-  w.flowers(10, 6, 5.0, 7, 4, [0xff5a9e, 0xffe45c]);
-  w.flowers(-20, -22, 9.0, 8, 4);
-  w.flowers(30, 10, 5.0, 8, 4);
-  w.bush(-12, 14, 1.5, 1.1, P.leafD);
-  w.bush(14, 20, 1.5, 1.0, P.leafD);
-  w.bush(-26, 2, 0, 1.2, P.leafD);
-  w.crate(12, 16, 1.5, 1);
-  w.crate(-16, 8, 1.5, 0.9);
-  w.lantern(-3, 22, 1.5, 0xffe6a0, 3);
-  w.lantern(5, 22, 1.5, 0xffe6a0, 3);
-
-  // Bloques de piedra sueltos: el detalle que rompe la superficie del prado.
-  for (let i = 0; i < 16; i++) {
-    const x = Math.round((w.rnd() - 0.5) * 40), z = Math.round(10 + w.rnd() * 16);
-    w.blk('stone', x, 1.78, z, 0.95, 0.56, 0.95, jit(0x8f98ac, w.rnd, 0.12));
-  }
-  for (let i = 0; i < 12; i++) {
-    const x = Math.round((w.rnd() - 0.5) * 26), z = Math.round(-5 + w.rnd() * 14);
-    w.blk('stone', x, 5.28, z, 1.0, 0.56, 1.0, jit(0x8f98ac, w.rnd, 0.12));
-  }
-
-  // Matojos y piedrecillas: el prado de la referencia está erizado de detalle.
-
-  // Bordes irregulares: un acantilado no acaba en línea recta.
-  crumble(w, 0, 1, 30, 16, 5.0, P.stoneD);
-  crumble(w, -4, 17.5, 44, 17, 1.5, P.stoneD);
-  crumble(w, 27, 6, 18, 22, 5.0, P.stoneD);
-  crumble(w, 20, -36, 28, 20, 10.0, P.stoneD);
-  crumble(w, 20, -38, 18, 12, 12.0, P.stoneD);
-
-  // ---------------------------------------------------------------- fondo
-  // El paisaje no acaba en el borde de la arena: dos anillos de lomas tapan el
-  // suelo de relleno y dejan un horizonte de campo, no una plancha verde.
-  backdropFloor(w, 0x6a9450, -4.2);
-  // Tres anillos: colinas cercanas con árboles, bosque medio, cordillera lejana.
-  forestRing(w, 52, 74, 64, 1.6, 2.6, -1.5, 0x2f7a38);
-  backHill(w, 4, -122, 78, 58, 12, 2, GR, ST, 0.5);
-  backHill(w, -90, -152, 68, 50, 17, 3, GR, ST, 0.45);
-  backHill(w, 98, -158, 70, 52, 15, 3, GR, ST, 0.45);
-  backHill(w, -34, -220, 100, 66, 24, 5, GR, ST, 0.4);
-  backHill(w, 74, -232, 104, 70, 21, 5, GR, ST, 0.4);
-  for (let i = 0; i < 18; i++) {
-    const a = w.rnd() * Math.PI * 2, r = 110 + w.rnd() * 130;
-    w.cloud(Math.cos(a) * r, 58 + w.rnd() * 30, Math.sin(a) * r, 1.6 + w.rnd() * 2.0);
-  }
+  // Este bioma no tiene agua: bajar el nivel de vadeo evita que groundAt()
+  // encuentre una plataforma falsa por debajo del suelo.
+  w.waterFloor = -3.0;
+  w.waterColor = 0x4aa8c8;
+  w.waterGlow = 0.08;
 }
 
 // Cuerpo del castillo. La referencia tiene un castillo de cuento: muro
@@ -1539,7 +1425,9 @@ const fallMats = [];
 // fábrica. Sin ellas el escenario es una maqueta; con ellas está vivo, que es
 // la mitad del aire de la referencia.
 const MOTE_ART = {
-  rooftop: { color: 0xfff0a0, count: 240, size: 0.42, area: 120, height: 26, drift: 1.1, blend: 'add' },
+  // Polen a media altura: a 26 unidades parecían estrellas en un cielo de
+  // mediodía. Bajan y se suavizan para leerse como motas sobre el prado.
+  rooftop: { color: 0xffe9a8, count: 170, size: 0.30, area: 120, height: 13, drift: 0.8, blend: 'add' },
   hive: { color: 0x8affd8, count: 460, size: 0.44, area: 118, height: 30, drift: 0.7, blend: 'add' },
   docks: { color: 0xffd9a0, count: 200, size: 0.4, area: 120, height: 26, drift: 0.8, blend: 'add' },
   spire: { color: 0xff8ae0, count: 260, size: 0.4, area: 120, height: 30, drift: 1.4, blend: 'add' },
@@ -1618,9 +1506,10 @@ export function buildWorld(id, parent, rnd, platforms, colliders) {
   // Paisaje envolvente: los dos primeros mundos lo construyen a mano, el resto
   // lo recibe de aquí para no acabar en una plataforma flotando en el vacío.
   if (SURROUND[id]) surround(b, worldArt(id) || {}, SURROUND[id]);
-  // Detalle de suelo para todos los mundos por igual.
+  // Detalle de suelo: en el Mundo 1 lo sustituyen los modelos reales del
+  // Nature Kit (hierba, flores, piedras...), todos en InstancedMesh.
   const [dc, dd] = DETAIL[id] || DETAIL.rooftop;
-  b.dressGround(dc, dd);
+  if (id !== 'rooftop') b.dressGround(dc, dd);
   b.renderTerrain();
   const g = new THREE.Group();
   g.name = 'World';
@@ -1629,6 +1518,12 @@ export function buildWorld(id, parent, rnd, platforms, colliders) {
   // de color y lo que da la sensación de estar dentro de un paisaje.
   const art = worldArt(id) || {};
   g.add(buildSky(art));
+  // Mundo 1: modelos Kenney. Si el puente IPC aún no ha terminado de parsear
+  // los GLB, se levanta solo el suelo y game.js reconstruye la arena al llegar.
+  if (id === 'rooftop') {
+    if (natureReady()) populateNature(b, g);
+    else window.__NR_NATURE_PENDING = true;
+  }
   parent.add(g);
   if (platforms) {
     // Suelo de agua: se puede vadear en vez de caer al vacío. Va primero para

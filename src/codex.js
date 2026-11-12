@@ -1,10 +1,11 @@
 // NEON//REVENANT — biblioteca de descubrimientos (códice).
-// Renderiza lo que el jugador ya vio: hostiles, jefes, habilidades, armas,
-// cuerpo a cuerpo, utilidad, sinergias y logros. Lo no descubierto se muestra
-// como silueta sin datos para no desvelar el catálogo.
+// Renderiza lo que el jugador ya vio: hostiles, jefes, habilidades, armas
+// únicas, utilidad, sinergias y logros. Lo no descubierto se muestra como
+// silueta sin datos para no desvelar el catálogo.
 
 import { BOSSES, BOSS_ABILITIES } from './bosses.js';
-import { ABILITIES, WEAPONS, MELEE, UTILITY, SYNERGIES, ACHIEVEMENTS, ENEMY_CODEX } from './content.js';
+import { ABILITIES, UTILITY, SYNERGIES, ACHIEVEMENTS, ENEMY_CODEX } from './content.js';
+import { UNIQUE_WEAPONS } from './weapons.js';
 
 const FACTIONS = ['SYNTEK', 'HIVE', 'UMBRA'];
 const FACTION_COLOR = { SYNTEK: '#6ef7e7', HIVE: '#b6ff3d', UMBRA: '#b56bff' };
@@ -86,30 +87,20 @@ export function renderCodex(host, meta, opts = {}) {
   });
   parts.push(section('HABILIDADES DE BOTÍN', 'Se desbloquean en los cajones de suministros y en la pantalla de mejoras.', abCards));
 
-  // ---- ARMAS ----------------------------------------------------------------
-  const wpnCards = Object.entries(WEAPONS).map(([wid, w]) => {
-    const seen = cx.weapons[wid];
-    const hex = '#' + (w.color || 0x6ef7e7).toString(16).padStart(6, '0');
-    if (!seen) return card({ locked: true, color: hex });
+  // ---- ARMAS ÚNICAS ---------------------------------------------------------
+  // Ya no hay arsenal intercambiable: cinco armas, una por héroe. La ficha se
+  // desvela al jugar con ese héroe (Meta.markSeen('weapons', clave)).
+  const wpnCards = UNIQUE_WEAPONS.map(w => {
+    const hex = '#' + (w.color || 0xffcf4a).toString(16).padStart(6, '0');
+    if (!cx.weapons[w.key]) return card({ locked: true, color: hex });
     return card({
       icon: '➶', color: hex,
-      name: w.name + ' — ' + w.sub, sub: w.special ? 'ARMA ESPECIAL' : 'ARMA DE OPERADOR',
-      body: esc(w.how || 'Arma de serie de tu operador.'), tags: w.special ? ['ESPECIAL'] : ['SERIE']
+      name: w.name + ' — ' + w.sub, sub: 'ARMA ÚNICA // ' + w.character.toUpperCase(),
+      body: esc(w.how),
+      tags: w.projectile ? ['PROYECTIL ' + w.projectile.toUpperCase()] : ['TAJO CORTANTE']
     });
   });
-  parts.push(section('ARSENAL PRINCIPAL', 'Las armas de serie pertenecen al operador. Las especiales llegan del botín.', wpnCards));
-
-  // ---- CUERPO A CUERPO ------------------------------------------------------
-  const mlCards = MELEE.map(m => {
-    const seen = cx.melee[m.id];
-    if (!seen) return card({ locked: true, color: m.color });
-    return card({
-      icon: m.icon, color: m.color, name: m.name + ' — ' + m.sub,
-      sub: 'CUERPO A CUERPO', body: esc(m.how) + '<br><b>ESPECIAL:</b> ' + m.special.name + ' — ' + m.special.desc,
-      tags: ['DAÑO ×' + m.damage, 'ALCANCE ' + m.range + 'm']
-    });
-  });
-  parts.push(section('CUERPO A CUERPO', 'Ranura E. Cada una con su técnica especial. Se desbloquean con las rondas.', mlCards));
+  parts.push(section('ARMAS ÚNICAS', 'Cada héroe empuña un solo arma. Se desvela al jugar con él.', wpnCards));
 
   // ---- UTILIDAD ---------------------------------------------------------------
   const utCards = UTILITY.map(u => {

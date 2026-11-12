@@ -176,44 +176,21 @@ export const RESONANCES = {
 };
 
 // ---------------------------------------------------------------------------
-// Evoluciones de arma: tener el arma + su módulo saturado la transforma.
-// `out` es una entrada completa de WEAPONS que se registra al evolucionar.
+// BENDICIONES del arma única: saturar un don clave potencia el arma que el
+// héroe ya empuña (+18% daño, +10% cadencia). Antes cada entrada sustituía un
+// arma intercambiable por otra (`base` / `out`); ese catálogo se eliminó junto
+// con el arsenal de botín, así que aquí solo queda el disparador y el nombre.
 export const EVOLUTIONS = [
-  {
-    id: 'singularidad', base: 'rail', need: 'perf', color: '#6ef7e7',
-    name: 'AGUJA SINGULARIDAD', sub: 'RAIL // EVOLUCIONADA',
-    desc: 'Atraviesa todo lo que encuentre y deja un rastro de fase que sigue cortando.',
-    out: { name: 'AGUJA SINGULARIDAD', sub: 'RAIL // EVOLUCIONADA', damage: 5.6, fireRate: 3.1, ammo: .5, pellets: 1, spread: 0, pierce: 24, color: 0x9ff7ff, kick: .46, special: true, trail: true,
-      how: 'Lanza de riel evolucionada: perfora la arena entera y el rastro corta a quien lo cruce.' }
-  },
-  {
-    id: 'ruptor', base: 'shotgun', need: 'gatillo', color: '#ff4d38',
-    name: 'RUPTOR DE FASE', sub: 'SHOTGUN // EVOLUCIONADA',
-    desc: 'Catorce perdigones en un cono cerrado: borra todo lo que esté delante.',
-    out: { name: 'RUPTOR DE FASE', sub: 'SHOTGUN // EVOLUCIONADA', damage: .34, fireRate: 1.9, ammo: .8, pellets: 14, spread: .055, pierce: 1, color: 0xff8a5c, kick: .3, special: true,
-      how: 'Escopeta evolucionada: más perdigones, cono más cerrado y cada uno atraviesa un cuerpo.' }
-  },
-  {
-    id: 'trueno', base: 'mortar', need: 'detonador', color: '#ffbf47',
-    name: 'TRUENO ORBITAL', sub: 'MORTERO // EVOLUCIONADO',
-    desc: 'Cada impacto abre dos explosiones: la primera rompe, la segunda remata.',
-    out: { name: 'TRUENO ORBITAL', sub: 'MORTERO // EVOLUCIONADO', damage: 3.4, fireRate: 2.2, ammo: .6, pellets: 1, spread: .02, pierce: 0, color: 0xffd34d, kick: .32, special: true, explosive: true, doubleBlast: true,
-      how: 'Mortero evolucionado: doble detonación y radio un 40% mayor.' }
-  },
-  {
-    id: 'riego', base: 'lmg', need: 'recarga', color: '#ffbf47',
-    name: 'RIEGO INFINITO', sub: 'LMG // EVOLUCIONADA',
-    desc: 'Cargador descomunal y cadencia absurda. El gatillo se queda caliente.',
-    out: { name: 'RIEGO INFINITO', sub: 'LMG // EVOLUCIONADA', damage: .68, fireRate: .42, ammo: 4.2, pellets: 1, spread: .05, pierce: 2, color: 0xffd34d, kick: .04, special: true,
-      how: 'Ametralladora evolucionada: 4× cargador, cadencia altísima y perforación doble.' }
-  },
-  {
-    id: 'enjambre', base: 'flak', need: 'oraculo', color: '#9ff7ff',
-    name: 'ENJAMBRE AA', sub: 'FLAK // EVOLUCIONADO',
-    desc: 'Cinco proyectiles teledirigidos que corrigen el rumbo solos.',
-    out: { name: 'ENJAMBRE AA', sub: 'FLAK // EVOLUCIONADO', damage: .62, fireRate: 1.0, ammo: 1.5, pellets: 5, spread: .16, pierce: 0, color: 0x9ff7ff, kick: .2, special: true, homing: true,
-      how: 'Cañón evolucionado: cinco cabezas buscadoras que giran hacia el objetivo más cercano.' }
-  }
+  { id: 'singularidad', need: 'perf', color: '#6ef7e7', name: 'SINGULARIDAD',
+    desc: 'El arma única gana +18% de daño y +10% de cadencia permanentes durante la incursión.' },
+  { id: 'ruptor', need: 'gatillo', color: '#ff4d38', name: 'RUPTOR DE FASE',
+    desc: 'El arma única gana +18% de daño y +10% de cadencia permanentes durante la incursión.' },
+  { id: 'trueno', need: 'detonador', color: '#ffbf47', name: 'TRUENO ORBITAL',
+    desc: 'El arma única gana +18% de daño y +10% de cadencia permanentes durante la incursión.' },
+  { id: 'riego', need: 'recarga', color: '#ffbf47', name: 'RIEGO INFINITO',
+    desc: 'El arma única gana +18% de daño y +10% de cadencia permanentes durante la incursión.' },
+  { id: 'enjambre', need: 'oraculo', color: '#9ff7ff', name: 'ENJAMBRE AA',
+    desc: 'El arma única gana +18% de daño y +10% de cadencia permanentes durante la incursión.' }
 ];
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,58 @@
+{
+  "world1_nature": {
+    "kit": "nature-kit",
+    "zip": "kenney_nature-kit.zip",
+    "sourceModels": 329,
+    "imported": 329,
+    "filter": null,
+    "path": "assets/worlds/world1_nature/"
+  },
+  "world2_snow": {
+    "kit": "platformer-kit",
+    "zip": "kenney_platformer-kit.zip",
+    "sourceModels": 153,
+    "imported": 88,
+    "filter": "snow",
+    "path": "assets/worlds/world2_snow/"
+  },
+  "world3_shop": {
+    "kit": "mini-shop_2.1",
+    "zip": "kenney_mini-shop_2.1.zip",
+    "sourceModels": 30,
+    "imported": 30,
+    "filter": null,
+    "path": "assets/worlds/world3_shop/"
+  },
+  "world4_suburban": {
+    "kit": "city-kit-suburban_20",
+    "zip": "kenney_city-kit-suburban_20.zip",
+    "sourceModels": 40,
+    "imported": 40,
+    "filter": null,
+    "path": "assets/worlds/world4_suburban/"
+  },
+  "world5_station": {
+    "kit": "space-station-kit",
+    "zip": "kenney_space-station-kit.zip",
+    "sourceModels": 97,
+    "imported": 97,
+    "filter": null,
+    "path": "assets/worlds/world5_station/"
+  },
+  "world6_space": {
+    "kit": "space-kit",
+    "zip": "kenney_space-kit.zip",
+    "sourceModels": 153,
+    "imported": 153,
+    "filter": null,
+    "path": "assets/worlds/world6_space/"
+  },
+  "world7_hexagon": {
+    "kit": "hexagon-kit",
+    "zip": "kenney_hexagon-kit.zip",
+    "sourceModels": 72,
+    "imported": 72,
+    "filter": null,
+    "path": "assets/worlds/world7_hexagon/"
+  }
+}

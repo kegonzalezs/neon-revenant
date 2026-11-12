@@ -327,202 +327,12 @@ function torus(parent, r, t, mat, pos, rot, seg, rseg) {
   return m;
 }
 
-function buildWeapons(g, P, id) {
-  const weapons = {};
-
-  function make(kind) {
-    const w = new THREE.Group();
-    w.position.set(.34, 1.5, -.48);
-    g.add(w);
-    const muzzle = new THREE.Object3D();
-    const bolt = new THREE.Group();
-    w.add(bolt);
-
-    if (kind === 'cannon') {
-      // --- CAÑÓN ROTATIVO -------------------------------------------------
-      box(w, .26, .3, .66, P.gunmetal, [0, 0, -.16], null, .05);
-      box(w, .22, .16, .5, P.armor, [0, .2, -.2], null, .04);
-      // Carcasa de refrigeración con ranuras.
-      for (let i = 0; i < 5; i++) box(w, .27, .02, .05, P.plate, [0, .04, -.34 - i * .06], null, .008);
-      // Tambor de munición lateral.
-      cyl(w, .13, .13, .16, P.armor, [.2, -.06, .02], [0, 0, Math.PI / 2], 12);
-      torus(w, .13, .022, P.plate, [.29, -.06, .02], [0, Math.PI / 2, 0], 6, 14);
-      // Grupo de tres cañones.
-      const spin = new THREE.Group(); spin.name = 'barrels'; spin.position.set(0, .02, -.58); w.add(spin);
-      for (let i = 0; i < 3; i++) {
-        const a = i * Math.PI * 2 / 3;
-        cyl(spin, .05, .05, .58, P.steel, [Math.cos(a) * .075, Math.sin(a) * .075, -.28], [Math.PI / 2, 0, 0], 8);
-        torus(spin, .05, .012, P.accent, [Math.cos(a) * .075, Math.sin(a) * .075, -.5], [0, 0, 0], 5, 10);
-      }
-      cyl(w, .13, .11, .1, P.plate, [0, .02, -.9], [Math.PI / 2, 0, 0], 12);
-      // Pistones de retroceso visibles a los lados.
-      for (const x of [-.14, .14]) {
-        cyl(w, .022, .022, .34, P.plate, [x, -.12, -.24], [Math.PI / 2, 0, 0], 6);
-        torus(w, .03, .01, P.accent, [x, -.12, -.08], [0, 0, 0], 5, 10);
-      }
-      // Empuñadura y culata.
-      box(w, .12, .26, .16, P.rubber, [0, -.24, .14], [.28, 0, 0], .04);
-      box(w, .1, .14, .26, P.dark, [0, -.02, .32], null, .03);
-      box(w, .12, .05, .2, P.accent, [0, .08, .3], null, .015);
-      // Indicador de carga.
-      const glow = box(bolt, .03, .03, .3, P.glass, [.14, .1, -.2], null, .01);
-      box(bolt, .1, .1, .18, P.armor, [0, .02, -.1], null, .03);
-      muzzle.position.set(0, .02, -1.05);
-    } else if (kind === 'needle') {
-      // --- LANZA DE AGUJA -------------------------------------------------
-      box(w, .16, .18, .5, P.gunmetal, [0, 0, -.1], null, .04);
-      box(w, .1, .06, .44, P.armor, [0, .13, -.12], null, .02);
-      // Dos raíles paralelos con puentes.
-      for (const x of [-.05, .05]) box(w, .024, .032, .86, P.steel, [x, .04, -.62], null, .006);
-      for (let i = 0; i < 4; i++) box(w, .13, .025, .03, P.armor, [0, .04, -.3 - i * .2], null, .006);
-      // Bobinas de aceleración.
-      for (let i = 0; i < 3; i++) torus(w, .062, .014, P.accent, [0, .04, -.38 - i * .16], [Math.PI / 2, 0, 0], 5, 12);
-      // Núcleo de energía entre los raíles.
-      box(w, .03, .03, .62, P.glass, [0, .04, -.62], null, .006);
-      // Bocas de descarga.
-      for (const x of [-.06, .06]) cone(w, .03, .16, P.plate, [x, .04, -1.02], [-Math.PI / 2, 0, 0], 5);
-      // Óptica y pantalla lateral.
-      box(w, .08, .07, .16, P.dark, [0, .2, -.12], null, .02);
-      box(w, .05, .05, .02, P.glass, [0, .2, -.21], null, .008);
-      box(w, .02, .1, .2, P.accent, [.09, .02, -.06], null, .006);
-      // Culata y empuñadura.
-      box(w, .1, .12, .24, P.dark, [0, -.02, .28], null, .02);
-      box(w, .1, .22, .1, P.rubber, [0, -.2, .1], [.3, 0, 0], .03);
-      const glow = box(bolt, .04, .04, .2, P.glass, [0, .04, -.5], null, .008);
-      box(bolt, .08, .08, .12, P.armor, [0, .04, -.16], null, .02);
-      muzzle.position.set(0, .04, -1.14);
-    } else if (kind === 'arcer') {
-      // --- ARCO VX: bobina abierta con dos electrodos y arco entre medias --
-      box(w, .2, .22, .58, P.gunmetal, [0, 0, -.12], null, .05);
-      box(w, .12, .06, .4, P.armor, [0, .16, -.14], null, .02);
-      // Dos electrodos que avanzan en paralelo.
-      for (const x of [-.09, .09]) {
-        box(w, .03, .03, .74, P.steel, [x, .05, -.55], null, .008);
-        cone(w, .035, .18, P.plate, [x, .05, -1.0], [-Math.PI / 2, 0, 0], 5);
-      }
-      // Bobinas de inducción: el arco salta entre ellas.
-      for (let i = 0; i < 4; i++) torus(w, .085, .016, P.accent, [0, .05, -.32 - i * .16], [Math.PI / 2, 0, 0], 5, 12);
-      // Núcleo de plasma entre los electrodos.
-      box(w, .035, .035, .5, P.glass, [0, .05, -.55], null, .008);
-      // Depósito y empuñadura.
-      cyl(w, .11, .11, .3, P.dark, [0, -.2, .04], [.2, 0, 0], 10);
-      box(w, .1, .22, .11, P.rubber, [0, -.18, .14], [-.2, 0, 0], .03);
-      box(w, .09, .1, .26, P.dark, [0, -.02, .32], null, .02);
-      // Pantalla de carga lateral.
-      box(w, .02, .12, .2, P.accent, [.11, .02, -.06], null, .006);
-      const glow = box(bolt, .05, .05, .22, P.glass, [0, .05, -.52], null, .01);
-      muzzle.position.set(0, .05, -1.06);
-    } else if (kind === 'flamer') {
-      // --- LANZALLAMAS: tanques gemelos y boquilla con piloto siempre vivo --
-      box(w, .22, .2, .46, P.gunmetal, [0, 0, -.08], null, .05);
-      // Dos tanques de combustible, uno a cada lado.
-      for (const x of [-.13, .13]) {
-        cyl(w, .09, .09, .5, P.armor, [x, .02, -.14], [Math.PI / 2, 0, 0], 10);
-        torus(w, .09, .018, P.plate, [x, .02, -.38], [Math.PI / 2, 0, 0], 5, 12);
-        torus(w, .09, .018, P.plate, [x, .02, .1], [Math.PI / 2, 0, 0], 5, 12);
-      }
-      // Tubería flexible hasta la boquilla.
-      cyl(w, .04, .04, .38, P.dark, [0, -.04, -.5], [Math.PI / 2, 0, 0], 8);
-      // Boquilla acampanada con piloto.
-      cyl(w, .07, .12, .22, P.steel, [0, .01, -.74], [Math.PI / 2, 0, 0], 10);
-      const pilot = torus(w, .1, .022, P.accent, [0, .01, -.86], [Math.PI / 2, 0, 0], 5, 14);
-      pilot.name = 'pilot';
-      // Mango y guardamanos.
-      box(w, .1, .2, .1, P.rubber, [0, -.2, .12], [-.22, 0, 0], .03);
-      box(w, .14, .1, .2, P.dark, [0, -.06, -.32], null, .03);
-      box(w, .09, .12, .24, P.dark, [0, .02, .3], null, .02);
-      box(w, .02, .1, .18, P.accent, [-.12, .02, -.02], null, .006);
-      const glow = box(bolt, .07, .07, .12, P.glass, [0, .01, -.8], null, .014);
-      muzzle.position.set(0, .01, -.92);
-    } else if (kind === 'prism') {
-      // --- PRISMA 3: tres cristales en abanico que refractan la luz --------
-      box(w, .18, .2, .44, P.gunmetal, [0, 0, -.1], null, .045);
-      // Tambor de tres lentes giratorias.
-      const drums = new THREE.Group(); drums.name = 'drums'; drums.position.set(0, .05, -.4); w.add(drums);
-      for (let i = 0; i < 3; i++) {
-        const a = i * 2.094;
-        const lens = new THREE.Mesh(new THREE.OctahedronGeometry(.085, 0), P.glass);
-        lens.position.set(Math.cos(a) * .11, Math.sin(a) * .11, 0);
-        drums.add(lens);
-      }
-      torus(w, .16, .02, P.accent, [0, .05, -.4], [0, 0, 0], 5, 16);
-      // Cañón corto y anillo de dispersión.
-      cyl(w, .05, .05, .34, P.steel, [0, .05, -.62], [Math.PI / 2, 0, 0], 8);
-      torus(w, .11, .022, P.plate, [0, .05, -.78], [0, 0, 0], 5, 14);
-      // Cuerpo y empuñadura.
-      box(w, .1, .26, .12, P.armor, [0, -.24, -.02], [.14, 0, 0], .03);
-      box(w, .1, .2, .11, P.rubber, [0, -.18, .14], [-.2, 0, 0], .03);
-      box(w, .09, .12, .26, P.dark, [0, .02, .3], null, .02);
-      // Mirilla de cristal.
-      box(w, .07, .06, .14, P.dark, [0, .21, -.12], null, .015);
-      box(w, .05, .04, .01, P.glass, [0, .21, -.2], null, .006);
-      const glow = box(bolt, .06, .06, .14, P.glass, [0, .05, -.6], null, .012);
-      muzzle.position.set(0, .05, -.86);
-    } else if (kind === 'lance') {
-      // --- LANZA LARGA: riel descomunal con freno de boca triple -----------
-      box(w, .2, .24, .8, P.gunmetal, [0, 0, -.3], null, .05);
-      box(w, .12, .07, .7, P.armor, [0, .16, -.34], null, .02);
-      // Riel principal larguísimo con puentes.
-      for (const x of [-.06, .06]) box(w, .028, .038, 1.34, P.steel, [x, .04, -.92], null, .007);
-      for (let i = 0; i < 6; i++) box(w, .16, .028, .035, P.armor, [0, .04, -.38 - i * .22], null, .007);
-      // Bobinas de aceleración de gran diámetro.
-      for (let i = 0; i < 4; i++) torus(w, .085, .018, P.accent, [0, .04, -.5 - i * .24], [Math.PI / 2, 0, 0], 5, 14);
-      // Núcleo y freno de boca triple.
-      box(w, .035, .035, 1.05, P.glass, [0, .04, -.92], null, .008);
-      for (const x of [-.07, 0, .07]) cone(w, .032, .2, P.plate, [x, .04, -1.54], [-Math.PI / 2, 0, 0], 5);
-      // Culata pesada, bipode y óptica de francotirador.
-      box(w, .12, .16, .34, P.dark, [0, -.02, .5], null, .03);
-      box(w, .13, .24, .06, P.armor, [0, -.05, .68], null, .02);
-      for (const x of [-.1, .1]) box(w, .025, .025, .3, P.steel, [x, -.16, -.6], [.5, 0, x * .3], .006);
-      box(w, .09, .09, .3, P.dark, [0, .24, -.3], null, .02);
-      box(w, .07, .07, .01, P.glass, [0, .24, -.46], null, .008);
-      box(w, .1, .2, .11, P.rubber, [0, -.2, .18], [-.22, 0, 0], .03);
-      const glow = box(bolt, .05, .05, .3, P.glass, [0, .04, -.8], null, .01);
-      muzzle.position.set(0, .04, -1.62);
-    } else {
-      // --- SUBFUSIL COMPACTO ---------------------------------------------
-      box(w, .19, .22, .62, P.gunmetal, [0, 0, -.14], null, .04);
-      box(w, .15, .07, .5, P.armor, [0, .16, -.16], null, .02);
-      // Riel picatinny.
-      for (let i = 0; i < 6; i++) box(w, .13, .022, .035, P.plate, [0, .21, -.34 + i * .06], null, .006);
-      // Guardamanos ventilado.
-      box(w, .16, .15, .34, P.steel, [0, -.01, -.56], null, .03);
-      for (let i = 0; i < 3; i++) box(w, .17, .04, .04, P.dark, [0, .0, -.44 - i * .09], null, .01);
-      // Cañón y boca de fuego.
-      cyl(w, .035, .035, .3, P.steel, [0, .02, -.86], [Math.PI / 2, 0, 0], 8);
-      cyl(w, .055, .05, .09, P.plate, [0, .02, -1.0], [Math.PI / 2, 0, 0], 10);
-      // Cargador curvado y empuñadura.
-      box(w, .1, .3, .13, P.armor, [0, -.26, -.02], [.16, 0, 0], .03);
-      box(w, .09, .06, .12, P.plate, [0, -.4, -.06], [.16, 0, 0], .02);
-      box(w, .1, .2, .11, P.rubber, [0, -.19, .16], [-.22, 0, 0], .03);
-      // Culata plegable.
-      box(w, .08, .1, .3, P.dark, [0, -.01, .34], null, .02);
-      box(w, .09, .18, .05, P.armor, [0, -.04, .48], null, .015);
-      // Óptica holográfica.
-      box(w, .07, .06, .12, P.dark, [0, .26, -.18], null, .015);
-      box(w, .05, .04, .01, P.glass, [0, .26, -.25], null, .006);
-      // Tira de estado y contador.
-      box(w, .012, .022, .22, P.accent, [.1, .04, -.16], null, .004);
-      box(w, .012, .022, .22, P.accent, [-.1, .04, -.16], null, .004);
-      const glow = box(bolt, .06, .05, .16, P.armor, [0, .06, -.36], null, .02);
-      box(bolt, .02, .02, .1, P.glass, [.08, .1, -.3], null, .005);
-      muzzle.position.set(0, .02, -1.08);
-    }
-
-    w.add(muzzle);
-    w.visible = false;
-    return { group: w, muzzle, bolt, glow: P.glass };
-  }
-
-  weapons.smg = make('smg');
-  weapons.cannon = make('cannon');
-  weapons.needle = make('needle');
-  weapons.arcer = make('arcer');
-  weapons.flamer = make('flamer');
-  weapons.prism = make('prism');
-  weapons.lance = make('lance');
-  return weapons;
-}
+// ---------------------------------------------------------------------------
+// El generador procedural de armas intercambiables (smg / cannon / needle /
+// arcer / flamer / prism / lance) se ELIMINÓ por completo. Cada héroe tiene un
+// único arma GLB propia; vease src/weapons.js. buildPlayerRig() solo crea el
+// soporte lógico vacío al que attachWeapon() cuelga el modelo real.
+// ---------------------------------------------------------------------------
 
 // ===========================================================================
 // SEGUNDA HORNADA DE OPERADORES
@@ -933,19 +743,99 @@ const BUILDERS = {
   seraph: buildSeraph, ronin: buildRonin, cipher: buildCipher
 };
 
+// ---------------------------------------------------------------------------
+// RIG LÓGICO (sin cuerpo voxel). Desde la actualización de estilo visual el
+// cuerpo lo aporta el .glb de Mixamo; aquí solo sobreviven los puntos de anclaje
+// que la lógica de combate necesita: armas, boca de fuego, mano del cuerpo a
+// cuerpo y los nodos que updatePlayer() sigue moviendo. Son Object3D vacíos:
+// cero geometría, cero material y cero textura del estilo visual anterior.
+export function buildPlayerRig(id, colorHex) {
+  const P = palette(colorHex);
+  const g = new THREE.Group();
+  // Portador único de TODAS las armas. El módulo GLB lo desplaza cada frame
+  // hasta la mano derecha del esqueleto Mixamo; así las posiciones lógicas que
+  // escribe game.js (gun.position.z = -.48 + retroceso) siguen intactas y el
+  // retroceso/recarga no se pelean con el anclaje al modelo nuevo.
+  const weaponCarrier = new THREE.Group();
+  weaponCarrier.name = 'WeaponCarrier';
+  g.add(weaponCarrier);
+  // Soporte lógico del arma ÚNICA: sin geometría ni materiales. attachWeapon()
+  // cuelga aquí el GLB del héroe; updatePlayer() escribe en `gun` el retroceso
+  // y la inclinación de recarga exactamente igual que antes.
+  const gunBase = new THREE.Vector3(.34, 1.5, -.48);
+  const gun = new THREE.Group();
+  gun.name = 'UniqueWeaponMount';
+  gun.position.copy(gunBase);
+  weaponCarrier.add(gun);
+  const muzzle = new THREE.Object3D();
+  muzzle.name = 'FallbackMuzzle';
+  muzzle.position.set(0, 0, -.5);
+  gun.add(muzzle);
+
+  const anchor = (name, x = 0, y = 0, z = 0) => {
+    const o = new THREE.Group(); o.name = name; o.position.set(x, y, z); g.add(o); return o;
+  };
+  const legs = [anchor('legL', -.17, .96, 0), anchor('legR', .17, .96, 0)];
+  const arms = [anchor('armL', -.42, 1.82, 0), anchor('armR', .42, 1.82, 0)];
+  const torso = anchor('torso', 0, 1.62, 0);
+  const chestPlate = anchor('chestPlate', 0, 1.66, 0);
+  const head = anchor('head', 0, 2.13, 0);
+  const scarf = anchor('scarf', -.3, 1.5, .2);
+  const cloak = anchor('cloak');
+  const thrusters = anchor('thrusters'); thrusters.visible = false;
+  const heavyArmor = anchor('heavyArmor'); heavyArmor.visible = false;
+  // Mano del melé: cuelga directamente del rig (antes era hija del brazo
+  // procedural). La alinea el cargador GLB con la mano izquierda del esqueleto.
+  const hand = new THREE.Group(); hand.position.set(-.42, 1.12, -.12); g.add(hand);
+
+  // El núcleo dorsal late en updatePlayer(); dos proxies absorben esas escrituras.
+  const core = new THREE.Group(); core.name = 'core';
+  const bulb = new THREE.Object3D(), halo = new THREE.Object3D();
+  core.add(bulb, halo); core.userData.bulb = bulb; core.userData.halo = halo;
+  g.add(core);
+
+  g.userData = {
+    legs, arms, torso, chestPlate, head, visor: anchor('visor', 0, 2.16, -.145),
+    cloak, shoulders: [anchor('shoulderL', -.4, 1.86, 0), anchor('shoulderR', .4, 1.86, 0)],
+    scarf, thrusters, heavyArmor, scarfSegs: null, shield: null, brim: null,
+    weapons: {}, gun, muzzle, fallbackMuzzle: muzzle, fallbackGun: gun,
+    weaponMount: gun, hand, weaponCarrier, gunBase,
+    pAccent: P.accent, pSecondary: P.secondary, palette: P, core,
+    rest: { torsoY: 1.6, chestY: 1.63, gunZ: -.44, armL: -1.02, armR: -1.24 },
+    bodyW: .64, operator: id
+    // El estado del AnimationMixer se guarda aparte (WeakMap) para que
+    // Object3D.clone() pueda serializar userData sin ciclos.
+  };
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+
+// Libera el caché de geometrías procedurales al cerrar la app: era la única
+// referencia fuerte que podía retener buffers del estilo visual anterior.
+export function disposeOperatorCache() {
+  for (const geo of geoCache.values()) geo.dispose();
+  geoCache.clear();
+}
+
 // Construye el operador completo. Devuelve un grupo listo para la escena con
 // todos los puntos de anclaje que usa la lógica de animación.
+// Se conserva solo como referencia/herramienta de depuración: el juego ya no
+// construye cuerpos voxel, usa buildPlayerRig() + el personaje .glb.
 export function buildOperator(id, colorHex) {
   const P = palette(colorHex);
   const build = BUILDERS[id] || BUILDERS.vanta;
   const body = build(P);
   const g = body.group;
 
-  const weapons = buildWeapons(g, P, id);
-  const gun = weapons.smg.group;
-  gun.visible = true;
-
-  // El modelo de cuerpo a cuerpo se engancha a la mano izquierda.
+  // Sin armas procedurales: ni intercambiables, ni cuerpo a cuerpo, ni arma
+  // por defecto. Solo el soporte lógico vacío que usa el arma única GLB.
+  const gun = new THREE.Group();
+  gun.name = 'UniqueWeaponMount';
+  gun.position.set(.34, 1.5, -.48);
+  g.add(gun);
+  const muzzle = new THREE.Object3D();
+  muzzle.position.set(0, 0, -.5);
+  gun.add(muzzle);
   const hand = new THREE.Group();
   hand.position.set(0, -.7, -.12);
   body.arms[0].add(hand);
@@ -955,7 +845,8 @@ export function buildOperator(id, colorHex) {
     head: body.head, visor: body.visor, cloak: body.cloak, shoulders: body.shoulders,
     scarf: body.scarf, thrusters: body.thrusters, heavyArmor: body.heavyArmor,
     scarfSegs: body.scarfSegs || null, shield: body.shield || null, brim: body.brim || null,
-    weapons, gun, muzzle: weapons.smg.muzzle, hand,
+    weapons: {}, gun, muzzle, fallbackMuzzle: muzzle, fallbackGun: gun,
+    weaponMount: gun, weaponCarrier: g, hand, gunBase: new THREE.Vector3(.34, 1.5, -.48),
     pAccent: P.accent, pSecondary: P.secondary, palette: P,
     rest: body.rest, bodyW: body.bodyW, operator: id, core: body.core || null
   };

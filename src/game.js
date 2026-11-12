@@ -5,16 +5,37 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { CHARACTERS, WEAPONS, ABILITIES, BOOSTS, UPGRADES, LEVELS, SLOTS, SYNERGIES, MODIFIERS, DIFFICULTIES, LEVEL_ART, ROUNDS, roundLabel, MELEE, UTILITY, OBJECTIVES, ACHIEVEMENTS, ENEMY_CODEX } from './content.js';
+import { CHARACTERS, ABILITIES, BOOSTS, UPGRADES, LEVELS, SLOTS, SYNERGIES, MODIFIERS, DIFFICULTIES, LEVEL_ART, ROUNDS, roundLabel, UTILITY, OBJECTIVES, ACHIEVEMENTS, ENEMY_CODEX } from './content.js';
 import { FAMILIES, MODULES, RESONANCES, EVOLUTIONS, ABILITY_EVOLUTIONS, abilityEvolution, AFFIXES, PACTS, RELICS, relicById, THREAT, moduleById, affixById } from './arsenal.js';
 import { buildEnvironment } from './props.js';
 import { buildWorld, worldArt, updateWorld } from './worlds.js';
+// Arquitectura modular de los 7 mundos Kenney. Fase QC: solo 1 y 2 construidos;
+// los 5 restantes usan TEMPORALMENTE el builder voxel como fallback.
+import { WorldManager } from './WorldManager.js';
+import { COMFORT, artForLevel, worldIdForLevel } from './worlds/registry.js';
 import { BOSSES, BOSS_ABILITIES, bossFor, buildBossMesh } from './bosses.js';
 import * as Meta from './meta.js';
 import { MusicEngine } from './music.js';
 import { FX } from './fx.js';
-import { buildMeleeModel, buildCatModel, buildUtilityProp } from './loadout.js';
-import { buildOperator, disposeOperator } from './operators.js';
+import { buildCatModel, buildUtilityProp } from './loadout.js';
+import { buildPlayerRig, disposeOperatorCache } from './operators.js';
+import {
+  preloadCharacterGLB, attachCharacterGLB, setCharacterMotion, updateCharacterGLB,
+  applyCharacterTint, disposePlayerRig, disposeAllCharacterAssets,
+  cloneCharacterGhost, disposeCharacterGhost
+} from './glb-character.js';
+import { initNatureKit, disposeNatureKit } from './nature-kit.js';
+// --- Arsenal único: un arma GLB por héroe, proyectiles, partículas y SFX ----
+import {
+  WEAPON_DEFS, UNIQUE_WEAPONS, weaponFor, initWeapons,
+  attachWeapon, detachWeapon, disposeWeapons, weaponDiagnostics, activeWeapon
+} from './weapons.js';
+import { CombatParticles } from './combat-particles.js';
+import { CombatProjectiles } from './combat-projectiles.js';
+import {
+  loadSfxBank, bindSfxContext, playCharacterSfx, playSfx,
+  warmSfx, sfxDiagnostics, disposeSfxBank
+} from './sfx.js';
 import { FxPool } from './particles.js';
 import { makeFacadeBank } from './facades.js';
 import { renderCodex, codexSummary } from './codex.js';
@@ -24,6 +45,8 @@ import { buildEnemyModel, buildEliteCrown } from './enemies.js';
 const $ = (id) => document.getElementById(id);
 const fx = new FX();
 let vfx = null;
+let combatParticles = null;   // sprites Kenney con pooling instanciado
+let combatProjectiles = null; // flechas / orbes / láseres con pooling
 // La cuenta de draw calls se acumula entre los pases del composer.
 
 // Profundidad de las detonaciones en cadena: evita recursión descontrolada
@@ -45,6 +68,18 @@ window.addEventListener('error', (event) => {
 });
 const clamp = THREE.MathUtils.clamp;
 const C = { cyan: 0x6ef7e7, coral: 0xff4d38, dark: 0x080d11, steel: 0x1b2529, white: 0xdce8e3 };
+// Traduccion de acentos: la paleta cian/neon del tema anterior pasa a la gama
+// oro / verde / violeta de la interfaz de fantasia. Afecta SOLO al DOM (fichas,
+// gemas de botin, biblioteca y HUD); nunca a los datos de juego ni a los VFX 3D.
+const UI_GEM_MAP = {
+  '#6ef7e7':'#ffcf4a', '#7fc9bd':'#ffcf4a', '#8fd0e0':'#c9a9e8',
+  '#9ff7ff':'#a67bea', '#8fdfff':'#c9a9e8', '#3dffb0':'#9bcf5a',
+  '#5fe6b0':'#9bcf5a', '#b6ff3d':'#9bcf5a', '#a9c469':'#9bcf5a'
+};
+function uiGem(hex) {
+  const key = String(hex || '').toLowerCase();
+  return UI_GEM_MAP[key] || hex || '#ffcf4a';
+}
 // Vectores de trabajo reutilizados: evita miles de asignaciones por frame.
 const _tmpV = new THREE.Vector3();
 const _tmpV2 = new THREE.Vector3();
@@ -85,8 +120,11 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // La cuenta de draw calls se lleva por frame completo (varios pases del composer).
 renderer.info.autoReset = false;
-renderer.toneMapping = THREE.LinearToneMapping;
-renderer.toneMappingExposure = 1.15;
+// Confort visual: ACES comprime las altas luces en vez de recortarlas, así la
+// nieve del Mundo 2 y el oro de las armas nunca queman a blanco puro. La
+// exposición queda acotada por COMFORT (0.88..1.00) en applyLevel().
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
 const gl = renderer.getContext();
 const gpuInfo = gl.getExtension('WEBGL_debug_renderer_info');
 const gpuName = gpuInfo ? gl.getParameter(gpuInfo.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
@@ -136,11 +174,19 @@ function buildEnvironmentMap() {
   return env;
 }
 scene.environment = buildEnvironmentMap();
-if ('environmentIntensity' in scene) scene.environmentIntensity = 1.5;
+// El mapa de entorno procedural sigue dando volumen a los metales, pero a 0.42
+// en vez de 1.5: antes multiplicaba los reflejos especulares y era la causa
+// principal del deslumbramiento en armaduras y armas.
+if ('environmentIntensity' in scene) scene.environmentIntensity = 0.42;
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-// Bloom bajo y con umbral alto: solo queman el neón de armas, hostiles y botín.
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.16, 0.6, 0.86);
+// Bloom casi desactivado para el escenario: umbral 0.92 solo deja pasar los
+// emisivos de proyectiles / láseres / botín. Ninguna superficie mate Kenney
+// alcanza ese valor, así que el diorama no brilla y no fatiga la vista.
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(innerWidth, innerHeight),
+  0.12, COMFORT.bloomRadius, COMFORT.bloomThreshold
+);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 // Etalonaje: saturación, contraste y viñeta. Va después del OutputPass, así que
@@ -148,8 +194,10 @@ composer.addPass(new OutputPass());
 const gradePass = new ShaderPass({
   uniforms: {
     tDiffuse: { value: null },
-    sat: { value: 1.14 }, contrast: { value: 1.03 },
-    lift: { value: 0.02 }, vig: { value: 0.18 }
+    // Etalonaje suave (COMFORT.grade): el contraste 1.03 y la viñeta 0.18
+    // anteriores aplastaban las sombras a negro y cansaban en sesiones largas.
+    sat: { value: COMFORT.grade.sat }, contrast: { value: COMFORT.grade.contrast },
+    lift: { value: COMFORT.grade.lift }, vig: { value: COMFORT.grade.vig }
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: `
@@ -176,6 +224,9 @@ scene.add(world);
 // Backend de efectos con memoria fija (instancing + pools). Se crea aquí porque
 // necesita la escena, pero se usa desde todo el archivo.
 vfx = new FxPool(scene);
+// Pools del arsenal único: se crean una sola vez, antes del primer combate.
+combatParticles = new CombatParticles(scene, camera);
+combatProjectiles = new CombatProjectiles(scene, combatParticles);
 const solid = new THREE.MeshStandardMaterial({ color: C.steel, roughness: 0.72, metalness: 0.65 });
 const black = new THREE.MeshStandardMaterial({ color: 0x090d10, roughness: 0.4, metalness: 0.85 });
 const coral = new THREE.MeshStandardMaterial({ color: 0x55130d, emissive: C.coral, emissiveIntensity: 2.2 });
@@ -192,14 +243,25 @@ const arenaCircleMat = new THREE.MeshBasicMaterial({ color: C.coral, side: THREE
 const platformMat = new THREE.MeshStandardMaterial({ color: 0x948d7e, roughness: .82, metalness: .08 });
 const perimeterMat = new THREE.MeshStandardMaterial({ color: 0x7b7568, roughness: .9, metalness: .05 });
 
-const hemiLight = new THREE.HemisphereLight(0xd7e0dc, 0x6b6559, 2.1);
+// Luz base: techo 1.35 en hemisfera y rellenos con PointLights de baja
+// intensidad. applyLevel() sobreescribe estos valores con la paleta del
+// mundo, SIEMPRE pasada por comfortArt(): nunca blanco puro al 100% ni
+// intensidades que revienten el canal.
+const hemiLight = new THREE.HemisphereLight(0xd7e0dc, 0x6b6559, 1.25);
 scene.add(hemiLight);
-const moon = new THREE.DirectionalLight(0xfff0d6, 3.1);
+// Relleno ambiental: mínimo 0.30 garantizado por COMFORT. Sumado a la
+// hemisfera impide que la sombra sea negro puro bajo la copa de los árboles
+// del Nature Kit o dentro del cráter de un bloque de nieve.
+const ambientLight = new THREE.AmbientLight(0xffe9c0, 0.35);
+scene.add(ambientLight);
+const moon = new THREE.DirectionalLight(0xfff0d6, 1.4);
 moon.position.set(-22, 34, 16); moon.castShadow = true;
 // Sombra más barata y más nítida: menos resolución pero un frustum mucho más
 // ajustado (antes 2048² cubriendo 104×104 unidades) y refresco cada dos frames.
-moon.shadow.mapSize.set(1024, 1024); moon.shadow.camera.left = -40; moon.shadow.camera.right = 40;
-moon.shadow.camera.top = 40; moon.shadow.camera.bottom = -40;
+// ±50 cubre la arena completa (±46) para que las esquinas del diorama
+// también reciban sombra.
+moon.shadow.mapSize.set(1024, 1024); moon.shadow.camera.left = -50; moon.shadow.camera.right = 50;
+moon.shadow.camera.top = 50; moon.shadow.camera.bottom = -50;
 // normalBias desplaza la muestra a lo largo de la normal: mata el "acné" de
 // sombra (las bandas que aparecían en el suelo) sin despegar la sombra del objeto.
 moon.shadow.bias = -0.0002;
@@ -207,17 +269,38 @@ moon.shadow.normalBias = 0.055;
 moon.shadow.autoUpdate = false; moon.shadow.needsUpdate = true;
 scene.add(moon);
 // Dos luces de relleno cálida/fría: separan las caras de los volúmenes sin neón.
-const redLight = new THREE.PointLight(0xffd9a2, 34, 40, 2); redLight.position.set(-18, 7, -14); scene.add(redLight);
-const cyanLight = new THREE.PointLight(0x8fc4d4, 30, 38, 2); cyanLight.position.set(18, 6, 11); scene.add(cyanLight);
+// Intensidad contenida (COMFORT.maxFill = 8): antes iban a 34/30 y con el
+// metalness alto de los GLB provocaban los destellos que cansaban la vista.
+const redLight = new THREE.PointLight(0xffd9a2, 6.5, 40, 2); redLight.position.set(-18, 7, -14); scene.add(redLight);
+const cyanLight = new THREE.PointLight(0x8fc4d4, 5.5, 38, 2); cyanLight.position.set(18, 6, 11); scene.add(cyanLight);
 
 const ARENA = 46;
 let currentLevel = LEVELS[0];
+// Bloom del mundo activo: applyLevel() lo fija y el bucle de combate solo
+// puede SUMAR sobre él sin superar COMFORT.maxBloom.
+let currentBloom = 0.12;
 const platforms = [];
 // Huellas de la utilería (coches, contenedores, árboles...): sólidas para el
 // movimiento y para los proyectiles. Se reconstruyen con la arena.
 const propColliders = [];
 const arenaGroup = new THREE.Group();
 world.add(arenaGroup);
+// ---------------------------------------------------------------- mundos Kenney
+// Gestor modular de los 7 mundos (assets/worlds/). Fase QC: solo world1_nature
+// y world2_snow están construidos; los otros cinco devuelven false y el juego
+// cae TEMPORALMENTE al builder voxel hasta implementarlos.
+//  · onReady: al llegar los GLB por IPC, WorldManager rellena plataformas y
+//    huellas y levanta la arena real; aquí se recalcula la altura del anillo
+//    de reaparición para que no quede flotando sobre el diorama.
+let arenaRing = null, arenaCircle = null;
+const worldManager = new WorldManager(scene, {
+  moon,
+  onReady: () => {
+    const y = groundAt(0, 4, 60);
+    if (arenaRing) arenaRing.position.y = y + .04;
+    if (arenaCircle) arenaCircle.position.y = y + .045;
+  }
+});
 
 function box(parent, size, pos, material = solid) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
@@ -234,21 +317,26 @@ function rbox(parent, size, pos, material = solid, radius = 0.035, segments = 2)
 }
 function applyLevel() {
   const l = currentLevel;
-  // El arte del escenario voxel manda: cielo, niebla, luces y exposición salen
-  // de worlds.js para que la paleta del bloque y la de la luz sean la misma.
-  const art = worldArt(l.id) || LEVEL_ART[l.id] || LEVEL_ART.rooftop;
+  // Arte del escenario: los mundos Kenney ya construidos imponen SU paleta
+  // pastel; los pendientes siguen usando la voxel antigua. En ambos casos el
+  // valor pasa por comfortArt(), que acota exposición, bloom, intensidades de
+  // luz y pasteliza los colores para que ningún escenario queme blancos.
+  const legacy = worldArt(l.id) || LEVEL_ART[l.id] || LEVEL_ART.rooftop;
+  const art = artForLevel(l.id, legacy);
   scene.background = new THREE.Color(art.fog);
   scene.fog.color.setHex(art.fog);
   scene.fog.density = art.fogDensity;
   paintSky(art.sky, art.skyTop);
   hemiLight.color.setHex(art.hemiSky);
   hemiLight.groundColor.setHex(art.hemiGround);
-  hemiLight.intensity = art.hemiInt;
+  hemiLight.intensity = Math.min(COMFORT.maxHemi, art.hemiInt);
+  ambientLight.intensity = Math.max(COMFORT.minAmbient, art.ambient ?? COMFORT.minAmbient);
+  ambientLight.color.setHex(art.ambientColor ?? 0xffffff);
   moon.color.setHex(art.sun);
-  moon.intensity = art.sunInt;
+  moon.intensity = Math.min(COMFORT.maxSun, art.sunInt);
   moon.position.set(art.sunPos[0], art.sunPos[1], art.sunPos[2]);
-  redLight.color.setHex(art.fillA); redLight.intensity = art.fillInt;
-  cyanLight.color.setHex(art.fillB); cyanLight.intensity = art.fillInt * .85;
+  redLight.color.setHex(art.fillA); redLight.intensity = Math.min(COMFORT.maxFill, art.fillInt);
+  cyanLight.color.setHex(art.fillB); cyanLight.intensity = Math.min(COMFORT.maxFill, art.fillInt * .85);
   arenaFloor.color.setHex(art.floor);
   platformMat.color.setHex(art.platform);
   perimeterMat.color.setHex(art.platform).multiplyScalar(.8);
@@ -258,28 +346,43 @@ function applyLevel() {
   arenaAccentB.emissiveIntensity = .32;
   arenaRingMat.color.setHex(art.trim);
   arenaCircleMat.color.setHex(art.trim2);
+  currentBloom = art.bloom;
   bloom.strength = art.bloom;
+  bloom.threshold = COMFORT.bloomThreshold;
+  bloom.radius = COMFORT.bloomRadius;
   renderer.toneMappingExposure = art.exposure;
+  // La dirección del sol cambió: el mapa de sombras (autoUpdate=false) hay que
+  // regenerarlo o la escena queda con la sombra del mundo anterior.
+  moon.shadow.needsUpdate = true;
   rain.visible = art.rain > 0;
   rain.material.opacity = .45 * art.rain;
-  document.body.style.setProperty('--cyan', l.accent);
+  document.body.style.setProperty('--cyan', uiGem(l.accent));
 }
 function buildArena() {
-  // El escenario entero lo levanta el motor voxel: terreno, mesetas, puentes,
-  // escaleras, agua, vegetación y fondo lejano. La colisión sigue siendo la de
-  // siempre (lista de plataformas + huellas), solo que ahora la rellena el
-  // constructor a partir de la rejilla de alturas.
-  buildWorld(currentLevel.id, arenaGroup, rnd, platforms, propColliders);
+  // El escenario lo levanta el gestor modular: carga perezosa de GLB por IPC,
+  // InstancedMesh, colisiones publicadas por el builder. Si el mundo aún no
+  // está implementado (mundos 3-7 en la fase QC) devuelve false y se usa el
+  // builder voxel antiguo como fallback TEMPORAL.
+  const wid = worldIdForLevel(currentLevel.id);
+  const modular = worldManager.requestWorld(wid, arenaGroup, platforms, propColliders, rnd);
+  if (!modular) {
+    buildWorld(currentLevel.id, arenaGroup, rnd, platforms, propColliders);
+  }
   // Anillo de llegada: única concesión al lenguaje de neón, sirve para ubicar
   // el punto de reaparición sobre la meseta central.
   const cy = groundAt(0, 4, 60);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(4.4, 4.5, 64), arenaRingMat);
-  ring.rotation.x = -Math.PI / 2; ring.position.set(0, cy + .04, 4); arenaGroup.add(ring);
-  const circle = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.26, 4), arenaCircleMat);
-  circle.rotation.x = -Math.PI / 2; circle.rotation.z = Math.PI / 4;
-  circle.position.set(0, cy + .045, 4); arenaGroup.add(circle);
+  arenaRing = new THREE.Mesh(new THREE.RingGeometry(4.4, 4.5, 64), arenaRingMat);
+  arenaRing.rotation.x = -Math.PI / 2; arenaRing.position.set(0, cy + .04, 4); arenaGroup.add(arenaRing);
+  arenaCircle = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.26, 4), arenaCircleMat);
+  arenaCircle.rotation.x = -Math.PI / 2; arenaCircle.rotation.z = Math.PI / 4;
+  arenaCircle.position.set(0, cy + .045, 4); arenaGroup.add(arenaCircle);
 }
 function rebuildArena() {
+  // El gestor libera SU raíz (geometrías, materiales, texturas y la cache de
+  // plantillas del mundo anterior) ANTES del barrido de arenaGroup: así nada
+  // se dispone dos veces y el fallback voxel no tropieza con el grafo Kenney.
+  worldManager.dispose();
+  arenaRing = null; arenaCircle = null;
   for (const child of arenaGroup.children) disposeObject3D(child);
   arenaGroup.clear();
   platforms.length = 0;
@@ -456,44 +559,64 @@ const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x9cd8d
 applyLevel(); buildArena(); buildCity();
 
 // ---------------------------------------------------------------- player
-// El cuerpo del operador se reconstruye al cambiar de personaje: cada uno tiene
-// su propia silueta y sus propias armas, no un recoloreado del mismo maniquí.
+// Actualización de estilo visual: el cuerpo ya no se genera con cajas voxel.
+// buildPlayerRig() solo aporta el esqueleto LÓGICO (armas, boca de fuego,
+// anclas), y el GLTFLoader cuelga el robot Mixamo con su AnimationMixer.
+// Cambiar de operador reparenta el mismo visual: no se recarga el .glb, no se
+// duplican geometrías ni se re-suben texturas a la GPU.
 let player = null;
 const playerLights = [];
-const meleeModels = {};
 function createPlayerModel() {
-  if (player) { scene.remove(player); disposeOperator(player); player = null; }
+  // El GLB del arma es una PLANTILLA COMPARTIDA por los cinco heroes. Se
+  // separa del rig ANTES de disposePlayerRig(): si quedara colgado, el
+  // recolector liberaria sus geometrias y texturas y el siguiente heroe
+  // apareceria con el arma invisible.
+  detachWeapon();
+  if (player) {
+    for (const l of playerLights) l.removeFromParent();
+    scene.remove(player);
+    disposePlayerRig(player);
+    player = null;
+  }
   const c = CHARACTERS[selectedCharacter];
-  player = buildOperator(selectedCharacter, c.color);
+  player = buildPlayerRig(selectedCharacter, c.color);
   player.rotation.order = 'YXZ';
   scene.add(player);
   // Tres luces que viajan con el modelo: clave, relleno y contraluz.
   if (!playerLights.length) {
-    const key = new THREE.PointLight(0xcfefff, 14, 9, 2); key.position.set(1.1, 2.4, 1.9);
-    const fill = new THREE.PointLight(0x9fc4d6, 8, 7, 2); fill.position.set(-1.2, 1.1, 1.4);
-    const rim = new THREE.PointLight(C.coral, 7, 7, 2); rim.position.set(-.8, 2.2, -1.8);
+    // El .glb usa PBR real (no materiales planos del maniquí voxel): con las
+    // intensidades anteriores (14/8/7) y una luz a 1.5 u. de la cabeza, los
+    // paneles blancos se saturaban a blanco puro. Se separan y se atenúan.
+    const key = new THREE.PointLight(0xcfefff, 6.5, 9, 2); key.position.set(1.4, 2.8, 2.4);
+    const fill = new THREE.PointLight(0x9fc4d6, 4, 7, 2); fill.position.set(-1.2, 1.1, 1.4);
+    const rim = new THREE.PointLight(C.coral, 4, 7, 2); rim.position.set(-.8, 2.2, -1.8);
+    rim.userData.isRim = true;
     playerLights.push(key, fill, rim);
   }
   for (const l of playerLights) player.add(l);
-  // Cuerpo a cuerpo: el modelo vive en la mano izquierda; solo se ve el equipado.
-  for (const m of MELEE) {
-    if (!meleeModels[m.id]) {
-      const col = m.color === '#ffbf47' ? 0xffbf47 : m.color === '#b56bff' ? 0xb56bff : m.color === '#ff4d38' ? 0xff4d38 : 0x6ef7e7;
-      const model = buildMeleeModel(m.id, col);
-      model.position.set(0, -.06, -.04);
-      model.rotation.set(.3, 0, -.5);
-      model.visible = false;
-      meleeModels[m.id] = model;
-    }
-    player.userData.hand.add(meleeModels[m.id]);
-  }
-  syncMeleeModel();
+  // Arma UNICA: un GLB por heroe, colgado del soporte que el cargador de
+  // personajes desplaza cada frame hasta mixamorigRightHand. No hay arma por
+  // defecto compartida, ni intercambio, ni arma cuerpo a cuerpo separada.
+  attachWeapon(player, selectedCharacter);
+  warmSfx(selectedCharacter);
+  syncWeaponHUD();
+  applyCharacterTint(player, c.color);
+  // GLTFLoader (plantilla cacheada). La primera carga es asíncrona: mientras
+  // llega, el rig lógico ya es completamente funcional. El cargador comprueba
+  // glbAlive por si el rig se desechó antes de terminar el parseo.
+  attachCharacterGLB(player, selectedCharacter);
   return player;
 }
-function syncMeleeModel() {
-  for (const id in meleeModels) meleeModels[id].visible = id === state.meleeId;
-  const m = MELEE.find(x => x.id === state.meleeId);
-  if (m && $('melee-name')) $('melee-name').textContent = m.icon + ' ' + m.name;
+// El HUD ya no anuncia un arma intercambiable ni una tecla de melé: muestra el
+// arma única y, solo para los dos héroes cuerpo a cuerpo, el enfriamiento del
+// ataque primario (CLIC). No queda ninguna referencia a F ni a E.
+function syncWeaponHUD() {
+  const w = weaponFor(selectedCharacter);
+  if ($('weapon-name')) $('weapon-name').innerHTML = `${w.name} <span>${w.sub}</span>`;
+  if ($('weapon-swap-hint')) $('weapon-swap-hint').textContent = 'ARMA ÚNICA POR HÉROE';
+  const melSlot = $('melee-slot');
+  if (melSlot) melSlot.classList.toggle('hidden', !isMeleeHero());
+  if ($('melee-name')) $('melee-name').textContent = (isMeleeHero() ? '⚔ ' : '') + w.name + ' // CLIC';
 }
 
 // ---------------------------------------------------------------- state
@@ -513,7 +636,7 @@ const state = {
   headshotMult: 1.85, chargeMult: 1, dashRecovery: 1.55, overdriveDuration: 7, lifeOnKill: 0,
   shield: 0, maxShield: 0, shotCount: 0, grenade: false, grenadeEvery: 5, companions: 0, recoil: 0,
   py: 0, vy: 0, jumps: 2, maxJumps: 2, jumpPower: 10.6, grounded: true,
-  abilities: {}, timers: {}, weapons: [], weaponIndex: -1,
+  abilities: {}, timers: {}, weaponBlessing: 0, weaponEvolved: {},
   frenzy: 0, frenzyTimer: 0, frenzyDuration: 6, chipMult: 1, chips: 0, pierceBonus: 0,
   curse: 1, curseMult: 1, pending: 0, reinforceTimer: 0,
   critChance: .09, critMult: 1.65, ads: false, dashPunch: 0, dashRoll: 0, camDip: 0, slide: 0,
@@ -524,8 +647,9 @@ const state = {
   overdriveDamage: 1.25, critExplode: false, regenAlways: false, pactElites: 0, enemySpeed: 1,
   threat: 1, runTime: 0, hordeTimer: THREAT.hordeEvery, hordeCount: 0, eliteAffixes: 1,
   slowT: 0, slowFactor: 1, echoT: 0, buildScore: 1, roundScoreMult: 1, retaliateT: 0,
-  // Ranuras de carga: principal (siempre), cuerpo a cuerpo (E) y utilidad (G).
-  meleeId: 'blade', meleeCd: 0, meleeSwing: 0, meleeCombo: 0, meleeKills: 0, meleeUnlocked: 1,
+  // Ranuras de carga: ataque primario (CLIC/GATILLO), utilidad (G) y gato (C).
+  // `meleeSeq` identifica cada tajo para reiniciar el clip de animación.
+  meleeId: 'blade', meleeCd: 0, meleeSwing: 0, meleeSeq: 0, meleeCombo: 0, meleeKills: 0, meleeUnlocked: 1,
   utilityId: 'grenade', utilityCd: 0, utilityCharges: 0, utilityMax: 0, utilityUnlocked: 1, stim: 0,
   catOut: false, cat: null, catCd: 0, catUses: 0,
   obj: null, lastHit: null, runStart: 0, runShots: 0, runHits: 0, runHead: 0, runDmg: 0, runTaken: 0
@@ -546,6 +670,11 @@ class AudioEngine {
     if (this.ctx) return this.ctx;
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     this.master = this.ctx.createGain(); this.master.gain.value = .22; this.master.connect(this.ctx.destination);
+    // El banco Kenney (.ogg por IPC) comparte el mismo AudioContext y el mismo
+    // master: así el volumen global y el desbloqueo por gesto del usuario
+    // valen tanto para los tonos sintéticos como para los efectos de combate.
+    bindSfxContext(this.ctx, this.master);
+    warmSfx(selectedCharacter);
     this.ambient();
     return this.ctx;
   }
@@ -579,47 +708,51 @@ const audio = new AudioEngine();
 const music = new MusicEngine();
 
 // ---------------------------------------------------------------- weapons
-// Modelo 3D que se muestra para cada arma especial. Las evolucionadas reutilizan
-// el modelo de su arma base (si no, al evolucionar el arma desaparecía de las manos).
-const WEAPON_MODEL = {
-  lmg: 'cannon', shotgun: 'cannon', rail: 'needle', flak: 'smg', mortar: 'cannon',
-  singularidad: 'needle', ruptor: 'cannon', trueno: 'cannon', riego: 'cannon', enjambre: 'smg',
-  // segunda hornada
-  arcer: 'arcer', flamer: 'flamer', prism: 'prism', lance: 'lance',
-  sharder: 'cannon', disruptor: 'needle', cyclone: 'cannon', nailer: 'smg',
-  voidcaster: 'smg', beamgun: 'needle', scatter: 'cannon', thunder: 'cannon'
-};
-function baseWeapon() { return WEAPONS[CHARACTERS[selectedCharacter].weapon]; }
-function currentWeapon() {
-  if (state.weaponIndex >= 0 && state.weapons[state.weaponIndex]) return WEAPONS[state.weapons[state.weaponIndex]] || baseWeapon();
-  return baseWeapon();
+// ARSENAL ÚNICO. Se eliminaron el catálogo intercambiable, el arma por defecto
+// compartida, la tecla F, la tecla E, el botín de armas especiales y los
+// modelos procedurales. Queda UNA definición por héroe (src/weapons.js) con su
+// GLB, su proyectil, sus VFX y sus SFX. El contrato numérico (damage/fireRate/
+// ammo/pellets/spread/pierce/kick/color) sigue alimentando el bucle de combate.
+function currentWeapon() { return weaponFor(selectedCharacter); }
+// Melé puro = arma SIN proyectil. Hoy son exactamente el bárbaro (hacha) y el
+// vampiro (espada carmesí). Se deriva del dato para que añadir un héroe melé
+// no exija tocar el mapeo de entrada ni el HUD.
+function isMeleeHero(id = selectedCharacter) { return !weaponFor(id).projectile; }
+// Un ÚNICO botón de ataque para los cinco héroes: clic izquierdo / gatillo del
+// mando. Los melé ejecutan el tajo con animación + partículas de arco; el resto
+// dispara. Ya NO existen F (cambiar arma) ni E (cuerpo a cuerpo).
+function primaryAttack() {
+  if (isMeleeHero()) meleeAttack();
+  else shoot();
 }
 function syncAmmo(full = true) {
   const w = currentWeapon();
   state.maxAmmo = Math.max(4, Math.round(state.baseAmmo * w.ammo));
   state.ammo = full ? state.maxAmmo : Math.min(state.ammo, state.maxAmmo);
-  const baseId = CHARACTERS[selectedCharacter].weapon;
-  const model = (w.special ? WEAPON_MODEL[state.weapons[state.weaponIndex]]
-    : WEAPON_MODEL[baseId] || (selectedCharacter === 'rook' ? 'cannon' : selectedCharacter === 'kira' ? 'needle' : 'smg')) || 'smg';
-  for (const key of ['smg', 'cannon', 'needle', 'arcer', 'flamer', 'prism', 'lance']) {
-    const wp = player.userData.weapons[key];
-    if (!wp) continue;
-    const active = key === model;
-    wp.group.visible = active;
-    if (active) { player.userData.gun = wp.group; player.userData.muzzle = wp.muzzle; player.userData.bolt = wp.bolt || null; player.userData.barrels = wp.group.getObjectByName('barrels') || null; }
-  }
-  $('weapon-name').innerHTML = `${w.name} <span>${w.sub}</span>`;
-  $('weapon-swap-hint').textContent = state.weapons.length ? `F // CAMBIAR ARMA (${state.weapons.length + 1})` : 'F // SIN ARMAS EXTRA';
+  syncWeaponHUD();
   hudDirty = true;
 }
-function cycleWeapon() {
-  if (state.mode !== 'playing') return;
-  if (!state.weapons.length) { announce('NO HAY ARMAS ESPECIALES'); return; }
-  state.weaponIndex = state.weaponIndex >= state.weapons.length - 1 ? -1 : state.weaponIndex + 1;
-  syncAmmo();
-  audio.tone(560, .09, 'square', .09, -160);
-  announce(state.weaponIndex < 0 ? 'ARMA BASE EQUIPADA' : 'ARMA: ' + currentWeapon().name);
+// Las tragaperras ya no entregan armas: potencian la que el héroe empuña.
+// Es el mismo modificador que usan las bendiciones por don saturado.
+function blessWeapon(amount = .12) {
+  state.weaponBlessing = (state.weaponBlessing || 0) + amount;
+  state.fireRate = Math.max(.025, state.fireRate * (1 - amount * .35));
+  syncAmmo(false);
   hudDirty = true;
+}
+
+// Estadísticas del golpe cercano (ataque primario con CLIC de bárbaro/vampiro)
+// derivadas del arma única: ya no hay una segunda arma de melé con su propio
+// catálogo, ni una tecla E independiente, ni desbloqueos por ronda.
+function meleeInfo() {
+  const w = currentWeapon();
+  const heavy = w.key === 'hacha';
+  return {
+    name: w.name, sub: w.sub, color: '#' + w.color.toString(16).padStart(6, '0'),
+    icon: heavy ? '⚒' : '⚔', damage: heavy ? 4.4 : 2.5,
+    cooldown: heavy ? .62 : .36, range: heavy ? 4.0 : 3.2, arc: heavy ? 1.7 : 1.25,
+    knock: heavy ? 12 : 6, key: w.key
+  };
 }
 
 // ---------------------------------------------------------------- personajes
@@ -633,23 +766,138 @@ function applyCharacterAppearance() {
   ud.pAccent.emissiveIntensity = .9;
   ud.pAccent.color.setHex(c.color).multiplyScalar(.22);
   ud.pSecondary.emissive.setHex(c.color);
+  // El acento del operador también tiñe el material PBR del .glb (y la luz de
+  // contraluz), sin sustituir sus texturas embebidas.
+  applyCharacterTint(player, c.color);
   ud.cloak.visible = true;
-  ud.heavyArmor.visible = selectedCharacter === 'rook';
+  // El blindaje pesado pertenecía al Guerrero, ya fuera del roster.
+  ud.heavyArmor.visible = false;
   if ($('character-hud')) $('character-hud').textContent = c.name + ' // ' + c.role;
   document.body.dataset.operator = selectedCharacter;
 }
+// Selector estilo Slay the Spire 2: columna de operadores a la izquierda y
+// ficha de gran formato a la derecha.
+const opEsc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ---------------------------------------------------------------------------
+// ROSTER DEFINITIVO — hoja "Personajes 1.png" (5 héroes).
+// Cinco GLB propios en assets/characters/, cargados por src/glb-character.js.
+// El guerrero, el slime y el esqueleto quedan fuera del selector; el mago pasa
+// a ser LA BRUJA. Cada entrada conserva un `id` de CHARACTERS ya existente
+// para no romper árbol de habilidades, récords, arma base ni partida.
+// `stats` reproduce las tres barras de la ficha (Baja/Media/Alta/Muy Alto).
+// ---------------------------------------------------------------------------
+const ROSTER_ICONS = 'assets/ui/roster/';
+const ROSTER_ART = [
+  {
+    id: 'seraph', label: 'EL ARQUERO', role: 'PRECISIÓN A DISTANCIA', color: '#62c94a', icon: 'arquero',
+    desc: 'Precisión y control a distancia.',
+    stats: [['SALUD', .50, 'Media'], ['VELOCIDAD', .82, 'Alta'], ['DAÑO', .50, 'Medio']],
+    ability: 'DISPARO MÚLTIPLE', abilityText: 'Dispara varias flechas a la vez.'
+  },
+  {
+    id: 'ronin', label: 'EL BÁRBARO', role: 'FUERZA BRUTA', color: '#f0872c', icon: 'barbaro',
+    desc: 'Fuerza bruta en su máxima expresión.',
+    stats: [['SALUD', .82, 'Alta'], ['VELOCIDAD', .28, 'Baja'], ['DAÑO', 1.00, 'Muy Alto']],
+    ability: 'GOLPE SALVAJE', abilityText: 'Realiza un gran golpe en área.'
+  },
+  {
+    id: 'glitch', label: 'LA BRUJA', role: 'MAGIA OSCURA', color: '#a259e8', icon: 'bruja',
+    desc: 'Control y caos con magia oscura.',
+    stats: [['SALUD', .28, 'Baja'], ['VELOCIDAD', .50, 'Media'], ['DAÑO', .78, 'Alto']],
+    ability: 'TORMENTA MÁGICA', abilityText: 'Invoca una tormenta de proyectiles.'
+  },
+  {
+    id: 'vanta', label: 'EL ROBOT', role: 'ARTIFICIO DESTRUCTIVO', color: '#59b6e8', icon: 'robot',
+    desc: 'Tecnología al servicio de la destrucción.',
+    stats: [['SALUD', .82, 'Alta'], ['VELOCIDAD', .50, 'Media'], ['DAÑO', .50, 'Medio']],
+    ability: 'RAYO LÁSER', abilityText: 'Dispara un rayo de gran alcance.'
+  },
+  {
+    id: 'kira', label: 'EL VAMPIRO', role: 'DRENAJE VITAL', color: '#e8434f', icon: 'vampiro',
+    desc: 'Roba vida y sigue luchando.',
+    stats: [['SALUD', .50, 'Media'], ['VELOCIDAD', .82, 'Alta'], ['DAÑO', .78, 'Alto']],
+    ability: 'ROBO DE VIDA', abilityText: 'Recupera salud al derrotar enemigos.'
+  }
+];
+const artFor = id => ROSTER_ART.find(a => a.id === id);
+const iconURL = a => `${ROSTER_ICONS}${a.icon}.png`;
+
+function buildOperatorRoster() {
+  const host = $('op-roster');
+  if (!host || host.children.length) return;
+  host.innerHTML = ROSTER_ART.map((a, i) => `
+    <button class="roster-item" data-character="${a.id}" style="--char:${a.color}">
+      <span class="roster-idx">${String(i + 1).padStart(2, '0')}</span>
+      <img class="roster-icon" src="${iconURL(a)}" alt="${opEsc(a.label)}" draggable="false">
+      <span class="roster-text"><b>${opEsc(a.label)}</b><small>${opEsc(a.role)}</small></span>
+    </button>`).join('');
+}
+
+function paintOperatorHero(id) {
+  const c = CHARACTERS[id], hero = $('op-hero');
+  if (!c || !hero) return;
+  const art = artFor(id);
+  const accent = art ? art.color : c.hex;
+  hero.style.setProperty('--char', accent);
+  $('op-hero-name').textContent = art ? art.label : c.name;
+  $('op-hero-role').textContent = art ? art.role : c.role;
+  $('op-hero-desc').textContent = art ? art.desc : c.description;
+  // Don del héroe: nombre y efecto tal como aparecen en la hoja de personajes.
+  $('op-hero-passive').innerHTML = art
+    ? `<span>HABILIDAD</span><b>${opEsc(art.ability)}</b><small>${opEsc(art.abilityText)}</small>`
+    : `<span>PASIVA</span>${opEsc(c.passive)}`;
+
+  // Tres atributos de la ficha + el crítico real del operador para completar
+  // la rejilla 2x2. El `title` conserva el nivel literal (Media/Alta/Muy Alto).
+  const stats = art
+    ? [...art.stats.map(([k, v, lvl]) => [k, v, lvl]), ['CRÍTICO', c.headshotMult / 3.1, '']]
+    : [
+        ['VIDA', c.hp / 205, ''], ['DAÑO', c.damage / 58, ''],
+        ['VELOCIDAD', c.speed / 10.6, ''], ['CRÍTICO', c.headshotMult / 3.1, '']
+      ];
+  $('op-hero-stats').innerHTML = stats.map(([k, v, lvl]) =>
+    `<span title="${opEsc(lvl)}">${k}<i style="--v:${Math.min(100, Math.round(v * 100))}%"></i></span>`).join('');
+
+  const w = weaponFor(id);
+  $('op-hero-meta').innerHTML = [
+    `ARMA ÚNICA // ${opEsc(w.name)}`, opEsc(w.how),
+    `CARGADOR // ${Math.round(c.maxAmmo * w.ammo)}`, `SOBRECARGA // ${c.overdriveDuration}s`
+  ].map(t => `<span>${t}</span>`).join('');
+
+  const best = Meta.bestOf(id);
+  $('op-hero-record').textContent = best && best.wave
+    ? `OLA ${String(best.wave).padStart(2, '0')} · ${best.score}` : 'SIN REGISTRO';
+
+  const ph = $('op-hero-portrait');
+  ph.innerHTML = '';
+  if (art) {
+    const img = document.createElement('img');
+    img.className = 'roster-hero-icon';
+    img.src = iconURL(art);
+    img.alt = art.label;
+    img.draggable = false;
+    ph.appendChild(img);
+  } else {
+    // Fallback: retratos SVG heredados si el id no pertenece al roster nuevo.
+    const svg = document.querySelector(`[data-portrait="${id}"] svg`);
+    if (svg) ph.appendChild(svg.cloneNode(true));
+  }
+  ph.style.setProperty('--char', accent);
+  const glow = $('op-hero-glow');
+  if (glow) glow.style.background = `radial-gradient(circle at 34% 46%, ${accent}2e, transparent 62%)`;
+  const label = $('op-confirm')?.querySelector('span');
+  if (label) label.textContent = id === selectedCharacter ? 'SELECCIONADO' : 'SELECCIONAR';
+}
+
 function selectCharacter(id) {
   if (!CHARACTERS[id]) return;
   selectedCharacter = id;
   hubSkillChar = id;
-  document.querySelectorAll('.op-card').forEach(card => {
-    const active = card.dataset.character === id;
-    card.classList.toggle('selected', active);
-    const label = card.querySelector('.op-select');
-    if (label) label.textContent = active ? 'SELECCIONADO' : 'SELECCIONAR';
-    const best = card.querySelector('.op-best');
-    if (best) { const b = Meta.bestOf(id); best.textContent = b.wave ? `OLA ${String(b.wave).padStart(2, '0')} · ${b.score}` : 'SIN REGISTRO'; }
-  });
+  buildOperatorRoster();
+  document.querySelectorAll('#op-roster .roster-item').forEach(item =>
+    item.classList.toggle('selected', item.dataset.character === id));
+  paintOperatorHero(id);
   document.querySelectorAll('[data-skillchar]').forEach(chip => chip.classList.toggle('active', chip.dataset.skillchar === id));
   applyCharacterAppearance();
   hubTree = null;
@@ -668,6 +916,127 @@ function selectLevel(id) {
 let hubTree = null;
 let hubSkillChar = null;
 let hubTab = 'operator';
+let armoryCat = 'all';
+
+// ------------------------------------------------------------------ biblioteca
+// Catálogo completo de armas, habilidades y equipo en formato de cartas.
+// A diferencia del códice, aquí todo está a la vista: es una biblioteca, no un
+// registro de descubrimientos. Una pequeña marca indica lo ya visto en combate.
+const ARMORY_CATS = [
+  ['all', 'TODO'], ['weapons', 'ARMAS ÚNICAS'], ['abilities', 'HABILIDADES'],
+  ['utility', 'UTILIDAD'], ['synergies', 'SINERGIAS'],
+  ['modules', 'DONES'], ['relics', 'RELIQUIAS'], ['evolutions', 'BENDICIONES'],
+  ['codex', 'DESCUBRIMIENTOS']
+];
+const hexOf = n => '#' + Number(n || 0x6ef7e7).toString(16).padStart(6, '0');
+
+// El códice de descubrimientos se reconstruye al entrar en la biblioteca (y al
+// abrir su categoría) para que refleje las bajas de la última incursión.
+function refreshHubCodex() {
+  const host = $('hub-codex'); if (!host) return;
+  const kills = {}; const cx = Meta.getCodex();
+  for (const k in cx.enemies) kills[k] = cx.enemies[k].kills || 0;
+  renderCodex(host, Meta, { kills });
+}
+
+function armoryCatalog() {
+  const cx = Meta.getCodex();
+  const seen = (group, id) => !!(cx[group] && cx[group][id]);
+  const out = [];
+  const push = (cat, id, o, discovery) => out.push({
+    cat, id, seen: !discovery || seen(discovery, id), ...o
+  });
+
+  for (const w of UNIQUE_WEAPONS) {
+    const traits = ['ARMA ÚNICA', w.character.toUpperCase()];
+    if (w.pellets > 1) traits.push(`${w.pellets} PROYECTILES`);
+    if (w.pierce) traits.push(`PERFORA ${w.pierce}`);
+    if (w.projectile) traits.push(w.projectile.toUpperCase());
+    else traits.push('TAJO CORTANTE');
+    push('weapons', w.key, {
+      icon: w.projectile === 'laser' ? '⌁' : w.projectile === 'orb' ? '◈' : w.projectile ? '➶' : '⚔',
+      color: hexOf(w.color), name: w.name, sub: w.sub,
+      body: w.how, tag: traits.join(' · '),
+      detail: `DAÑO ×${w.damage} · CADENCIA ×${w.fireRate} · CARGADOR ×${w.ammo}`
+    }, 'weapons');
+  }
+  for (const a of ABILITIES) push('abilities', a.id, {
+    icon: a.icon, color: uiGem(a.color), name: a.name, sub: a.trigger,
+    body: a.how, tag: `NIVEL MÁX ${a.max} · ${a.id.toUpperCase()}`,
+    detail: typeof a.desc === 'function' ? a.desc(a.max - 1) : String(a.desc || '')
+  }, 'abilities');
+  for (const u of UTILITY) push('utility', u.id, {
+    icon: u.icon, color: uiGem(u.color), name: u.name, sub: `RANURA G // ${u.cooldown}s`,
+    body: u.how, tag: `${u.charges} CARGAS`, detail: u.desc || ''
+  }, 'utility');
+  for (const s of SYNERGIES) push('synergies', s.id, {
+    icon: '◈', color: uiGem(s.color), name: s.name, sub: 'SINERGIA OCULTA',
+    body: s.desc, tag: s.req.map(r => ABILITIES.find(a => a.id === r)?.name || r).join(' + '),
+    detail: 'Reúne las dos habilidades durante la misma incursión.'
+  }, 'synergies');
+  for (const m of MODULES) push('modules', m.id, {
+    icon: m.icon, color: m.rarity === 'ÉPICA' ? '#b56bff' : m.rarity === 'RARA' ? '#c9a9e8' : '#ffcf4a',
+    name: m.name, sub: `${m.family.toUpperCase()} // ${m.rarity}`,
+    body: m.how, tag: `NIVEL MÁX ${m.max}`, detail: m.desc
+  });
+  for (const r of RELICS) push('relics', r.id, {
+    icon: r.icon, color: uiGem(r.color), name: r.name, sub: `RELIQUIA // ${r.tier}`,
+    body: r.how, tag: r.tier, detail: r.desc
+  });
+  for (const e of EVOLUTIONS) push('evolutions', e.id, {
+    icon: '✦', color: uiGem(e.color), name: e.name, sub: 'BENDICIÓN DEL ARMA ÚNICA',
+    body: 'Al saturar el don ' + e.need.toUpperCase() + ', el arma única del héroe gana +18% de daño y +10% de cadencia de forma permanente durante la incursión.',
+    tag: 'DON ' + e.need.toUpperCase() + ' AL MÁXIMO',
+    detail: 'Ya no transforma el arma en otra: potencia la que ya empuñas.'
+  });
+  return out;
+}
+
+function renderArmory() {
+  const chips = $('armory-chips'), grid = $('armory-grid'), hostCodex = $('hub-codex');
+  if (!chips || !grid) return;
+  if (!chips.children.length) {
+    chips.innerHTML = ARMORY_CATS.map(([id, label]) =>
+      `<button class="armory-chip" data-armory-cat="${id}">${label}</button>`).join('');
+    chips.querySelectorAll('[data-armory-cat]').forEach(b => b.onclick = () => {
+      armoryCat = b.dataset.armoryCat;
+      audio.tone(560, .07, 'square', .06, 140);
+      if (armoryCat === 'codex') refreshHubCodex();
+      renderArmory();
+    });
+  }
+  chips.querySelectorAll('[data-armory-cat]').forEach(b => b.classList.toggle('active', b.dataset.armoryCat === armoryCat));
+
+  const showCodex = armoryCat === 'codex';
+  grid.hidden = showCodex;
+  if (hostCodex) hostCodex.hidden = !showCodex;
+
+  const cat = armoryCat === 'all' ? null : armoryCat;
+  const q = ($('armory-search')?.value || '').trim().toLowerCase();
+  const items = armoryCatalog().filter(it => (!cat || it.cat === cat) &&
+    (!q || (it.name + ' ' + it.sub + ' ' + it.body + ' ' + it.tag).toLowerCase().includes(q)));
+
+  if (!showCodex) {
+    grid.innerHTML = items.length ? items.map(it => `
+      <div class="armory-card${it.seen ? '' : ' unseen'}" data-armory-id="${opEsc(it.id)}" role="button" tabindex="0" style="--char:${it.color}">
+        <div class="armory-icon">${opEsc(it.icon)}</div>
+        <div class="armory-name">${opEsc(it.name)}</div>
+        <div class="armory-sub">${opEsc(it.sub)}</div>
+        <p class="armory-how">${opEsc(it.body)}</p>
+        <div class="armory-more">${opEsc(it.detail)}</div>
+        <div class="armory-tag">${opEsc(it.tag)}${it.seen ? ' · VISTO' : ' · NUEVO'}</div>
+      </div>`).join('') : '<div class="armory-empty">SIN RESULTADOS // PRUEBA OTRA CATEGORÍA O BÚSQUEDA</div>';
+    grid.querySelectorAll('.armory-card').forEach(card => {
+      const toggle = () => { card.classList.toggle('open'); audio.tone(420, .05, 'square', .05, 100); };
+      card.onclick = toggle;
+      card.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+    });
+  }
+  const count = $('armory-count');
+  if (count) count.textContent = showCodex ? codexSummary(Meta) : `${items.length} FICHAS EN CATÁLOGO`;
+  const summary = $('codex-summary');
+  if (summary) summary.textContent = showCodex ? codexSummary(Meta) : `${codexSummary(Meta)} · ${items.length} FICHAS`;
+}
 
 function selectHubTab(tab) {
   hubTab = tab;
@@ -675,12 +1044,7 @@ function selectHubTab(tab) {
   document.querySelectorAll('.hub-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === tab));
   if (tab === 'skills') renderHubTree();
   if (tab === 'dossier') refreshDossier();
-  if (tab === 'codex') {
-    const kills = {}; const cx = Meta.getCodex();
-    for (const k in cx.enemies) kills[k] = cx.enemies[k].kills || 0;
-    renderCodex($('hub-codex'), Meta, { kills });
-    if ($('codex-summary')) $('codex-summary').textContent = codexSummary(Meta);
-  }
+  if (tab === 'codex') { refreshHubCodex(); renderArmory(); }
 }
 function openHub(tab) {
   state.mode = 'hub'; mouseDown = false; document.exitPointerLock?.();
@@ -949,31 +1313,32 @@ function recomputeFamilies() {
   }
 }
 
-// Evolución: arma base en el inventario + su módulo saturado (nivel máximo).
+// BENDICIÓN del arma única: saturar un don clave ya no sustituye el arma por
+// otra (el arsenal intercambiable desapareció). Potencia permanentemente la
+// única que empuña el héroe durante esta incursión.
 function checkEvolution(mod) {
   if (!mod || state.modules[mod.id] < mod.max) return false;
-  for (const ev of EVOLUTIONS) {
-    if (ev.need !== mod.id || state.evolved[ev.id]) continue;
-    const slot = state.weapons.indexOf(ev.base);
-    if (slot < 0) continue;
-    WEAPONS[ev.id] = ev.out;                 // se registra el arma evolucionada
-    state.weapons[slot] = ev.id;             // sustituye a la base en la misma ranura
-    state.evolved[ev.id] = true;
-    if (state.weaponIndex === slot) syncAmmo();
-    announce('EVOLUCIÓN // ' + ev.name);
-    audio.tone(180, .85, 'sawtooth', .18, 1200);
-    setTimeout(() => audio.tone(640, .5, 'square', .12, 500), 160);
-    if (player) {
-      const col = hexToInt(ev.color), at = player.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-      crystalShell(at, 3.2, col, 1.1);
-      ringPulse(player.position.clone(), col, 6.2, .9);
-      shardRing(player.position.clone(), col, 3, 20, 6);
-      impactCore(at, col, 2.4, .3);
-    }
-    hudDirty = true;
-    return true;
+  const ev = EVOLUTIONS.find(e => e.need === mod.id && !state.weaponEvolved[e.id]);
+  if (!ev) return false;
+  state.weaponEvolved[ev.id] = true;
+  state.evolved[ev.id] = true;
+  state.weaponBlessing = (state.weaponBlessing || 0) + .18;
+  state.fireRate = Math.max(.025, state.fireRate * .9);
+  syncAmmo(false);
+  announce('BENDICIÓN // ' + ev.name);
+  audio.tone(180, .85, 'sawtooth', .18, 1200);
+  setTimeout(() => audio.tone(640, .5, 'square', .12, 500), 160);
+  playSfx('rpg/bookFlip1.ogg', { volume: .4 });
+  if (player) {
+    const col = hexToInt(ev.color), at = player.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+    crystalShell(at, 3.2, col, 1.1);
+    ringPulse(player.position.clone(), col, 6.2, .9);
+    shardRing(player.position.clone(), col, 3, 20, 6);
+    impactCore(at, col, 2.4, .3);
+    combatParticles?.preset(selectedCharacter, 'impact', at, new THREE.Vector3(0, 1, 0), {});
   }
-  return false;
+  hudDirty = true;
+  return true;
 }
 
 function installModule(id) {
@@ -1340,9 +1705,11 @@ function forkedArc(from, to, color, forks = 3) {
   vfx.arc(from, to, 0xffffff, 0, .7);
   impactCore(to.clone(), color, .9, .2);
 }
-function muzzleFlash() {
+function muzzleFlash(color = 0xffffff) {
   const p = new THREE.Vector3(); player.userData.muzzle.getWorldPosition(p);
-  vfx.flash(p, C.cyan, 22, 5, .05);
+  // Destello 3D discreto: el protagonismo visual lo llevan los sprites Kenney
+  // con AdditiveBlending del pool de partículas.
+  vfx.flash(p, color, 8, 2.4, .04);
 }
 // Onda que recorre el suelo en anillos concéntricos: se usa en detonaciones
 // grandes, señuelos espectrales y aterrizajes de jefe.
@@ -1662,9 +2029,9 @@ function updateWaypoint() {
 }
 function rollLoot() {
   const pool = [];
+  // Sin botín de armas: el arma única es fija por héroe. El botín solo reparte
+  // habilidades (sistema intacto) y mejoras de estadísticas.
   for (const a of ABILITIES) if ((state.abilities[a.id] || 0) < a.max) pool.push({ kind: 'ability', data: a, weight: 3 });
-  const specials = Object.keys(WEAPONS).filter(k => WEAPONS[k].special && !state.weapons.includes(k));
-  for (const w of specials) pool.push({ kind: 'weapon', data: { ...WEAPONS[w], id: w }, weight: 2.6 });
   for (const b of BOOSTS) if ((lootLevels[b.id] || 0) < b.max) pool.push({ kind: 'boost', data: b, weight: 2 });
   if (!pool.length) { state.score += 500; state.chips += 120; addFeed('BOTÍN DUPLICADO', 500); return; }
   const total = pool.reduce((n, x) => n + x.weight, 0);
@@ -1676,21 +2043,20 @@ function showLootReveal(item) {
   state.mode = 'loot'; mouseDown = false; document.exitPointerLock?.();
   pendingItem = item;
   const d = item.data;
-  const isWeapon = item.kind === 'weapon';
   const isAbility = item.kind === 'ability';
-  $('loot-icon').textContent = isWeapon ? 'WPN' : d.icon;
-  $('loot-icon').style.setProperty('--rarity', isWeapon ? '#ffbf47' : d.color);
-  $('loot-kind').textContent = isWeapon ? 'ARMA ESPECIAL' : isAbility ? 'HABILIDAD ESPECIAL' : 'MEJORA';
+  $('loot-icon').textContent = d.icon;
+  $('loot-icon').style.setProperty('--rarity', uiGem(d.color));
+  $('loot-kind').textContent = isAbility ? 'HABILIDAD ESPECIAL' : 'MEJORA';
   $('loot-name').textContent = d.name;
-  $('loot-sub').textContent = isWeapon ? d.sub : d.trigger || 'INSTANTÁNEO';
+  $('loot-sub').textContent = d.trigger || 'INSTANTÁNEO';
   const level = isAbility ? (state.abilities[d.id] || 0) : 0;
   $('loot-desc').textContent = isAbility ? d.desc(level) : (d.desc ? d.desc(level) : d.how);
-  $('loot-how').textContent = isWeapon ? d.how + ' Pulsa F para alternar entre tus armas.' : (d.how || '');
+  $('loot-how').textContent = d.how || '';
   const synBox = $('loot-synergy');
   const syn = isAbility ? synergyCompletedBy(d.id) : null;
   if (syn) {
     synBox.classList.remove('hidden');
-    synBox.style.setProperty('--syn', syn.color);
+    synBox.style.setProperty('--syn', uiGem(syn.color));
     $('loot-synergy-name').textContent = syn.name;
     $('loot-synergy-desc').textContent = syn.desc;
   } else synBox.classList.add('hidden');
@@ -1710,11 +2076,6 @@ function equipLoot() {
     if (d.id === 'orbit') syncOrbit();
     if (d.id === 'regen' && state.maxShield === 0) { state.maxShield = 40; state.shield = 40; }
     checkAbilityEvolution(d.id);
-  } else if (item.kind === 'weapon') {
-    state.weapons.push(d.id);
-    state.weaponIndex = state.weapons.length - 1;
-    Meta.markSeen('weapons', d.id);
-    syncAmmo();
   } else {
     lootLevels[d.id] = (lootLevels[d.id] || 0) + 1;
     d.apply(state);
@@ -2226,7 +2587,9 @@ function castGhost() {
   for (let k = 0; k < n; k++) {
     const a = rnd() * Math.PI * 2;
     const px = player.position.x + Math.cos(a) * 2.4, pz = player.position.z + Math.sin(a) * 2.4;
-    const c = player.clone(true);
+    // Clon con esqueleto propio (SkeletonUtils). player.clone(true) serializa
+    // userData a JSON y el mixer del GLB formaría un ciclo irresoluble.
+    const c = cloneCharacterGhost(player);
     c.position.set(px, state.py, pz);
     const mat = new THREE.MeshBasicMaterial({ color: 0xb56bff, transparent: true, opacity: .4, depthWrite: false, blending: THREE.AdditiveBlending });
     c.traverse(o => { if (o.isMesh) { o.material = mat; o.castShadow = false; o.receiveShadow = false; } });
@@ -2264,6 +2627,8 @@ function updateGhosts(dt) {
       gridRipple(gh.model.position, 0xb56bff);
       scene.remove(gh.model);
       gh.model.userData.ghostMat.dispose();
+      // El señuelo tiene su propio Skeleton: se libera su boneTexture de GPU.
+      disposeCharacterGhost(gh.model);
       ghosts.splice(i, 1);
     }
   }
@@ -2408,6 +2773,27 @@ function updateHazards(dt) {
 
 // ---------------------------------------------------------------- disparo
 function frenzyActive() { return state.frenzyTimer > 0; }
+
+/** Aplica un impacto ya resuelto. Se invoca al LLEGAR el proyectil (armas a
+ *  distancia) o de inmediato (tajos del hacha y la daga). Los efectos de
+ *  partículas y sonido se emiten una sola vez por disparo, no por enemigo. */
+/** Firma de partículas Kenney del héroe al CONFIRMAR un golpe. Se emite en el
+ *  cuerpo del enemigo (pecho / cabeza), una vez por enemigo acertado, con los
+ *  sprites y el etalonaje de `WEAPON_DEFS[id].vfx.hit` / `.hitStyle`. */
+function emitHitParticles(e, headshot = false) {
+  if (!combatParticles || !e || !e.group) return;
+  const at = e.group.position.clone().add(new THREE.Vector3(0, (headshot ? 2 : 1.35) * (e.group.scale.y || 1), 0));
+  combatParticles.preset(selectedCharacter, 'hit', at, null, {});
+}
+
+function applyShotHit(h, dmgBase) {
+  if (!h || h.e.dead || h.e.spawn > 0) return;
+  const dmg = dmgBase * (h.head ? state.headshotMult : 1);
+  damageEnemy(h.e, dmg, h.head);
+  emitHitParticles(h.e, h.head);
+  state.runHits++; if (h.head) state.runHead++; state.runDmg += dmg;
+}
+
 function shoot() {
   if (state.mode !== 'playing' || state.reloading > 0 || state.fireTimer > 0 || state.dashing > 0) return;
   const w = currentWeapon();
@@ -2415,17 +2801,27 @@ function shoot() {
   const rate = state.fireRate * w.fireRate * (state.overdrive > 0 ? .55 : 1) * (frenzyActive() ? .62 : 1) * (state.stim > 0 ? .7 : 1) * (state.retaliateT > 0 ? 1 / (1 + (state.retaliate || 0)) : 1);
   state.fireTimer = rate; state.ammo--; state.shake = Math.max(state.shake, .08 + w.kick * .3); state.shotCount++; state.recoil = 1;
   state.runShots += w.pellets;
-  if (state.grenade && state.shotCount % state.grenadeEvery === 0) fireGrenade();
-  // NÚCLEO INESTABLE: cada 12 disparos sale un proyectil puro que atraviesa todo.
-  if (hasRelic('core_inestable') && state.shotCount % 12 === 0) firePureLance(baseDir, dmgBase);
-  audio.shoot(); muzzleFlash();
-  $('crosshair').classList.add('fire'); setTimeout(() => $('crosshair').classList.remove('fire'), 55);
+
+  // Geometría del disparo. Se calcula ANTES de los disparos auxiliares: antes
+  // firePureLance() usaba baseDir/dmgBase en su zona de muerte temporal (TDZ).
   const origin = camera.position.clone();
   const baseDir = new THREE.Vector3(-Math.sin(state.yaw) * Math.cos(state.pitch), Math.sin(state.pitch), -Math.cos(state.yaw) * Math.cos(state.pitch)).normalize();
-  // MUNICIÓN REBOTANTE: los tiros siguen de largo y buscan al siguiente objetivo.
+  const mp = new THREE.Vector3(); player.userData.muzzle.getWorldPosition(mp);
   const rcLvl = abilityLevel('ricochet');
   const pierce = 1 + w.pierce + state.pierceBonus + (rcLvl > 0 ? 1 + rcLvl : 0);
-  const dmgBase = state.damage * w.damage * (state.overdrive > 0 ? 1.25 : 1) * (frenzyActive() ? 1.2 : 1);
+  const dmgBase = state.damage * w.damage * (1 + (state.weaponBlessing || 0))
+    * (state.overdrive > 0 ? 1.25 : 1) * (frenzyActive() ? 1.2 : 1);
+  const maxT = w.range || 85;
+
+  // Salida: fogonazo Kenney propio del héroe + chispas 3D + SFX con pitch
+  // aleatorio y polifonía limitada. Ya no existe el tracer hitscan genérico.
+  muzzleFlash(w.color);
+  combatParticles?.preset(selectedCharacter, 'shoot', mp, baseDir, {});
+  playCharacterSfx(selectedCharacter, 'shoot', { volume: .6 });
+  if (!isMeleeHero()) { $('crosshair').classList.add('fire'); setTimeout(() => $('crosshair').classList.remove('fire'), 55); }
+  if (state.grenade && state.shotCount % state.grenadeEvery === 0) fireGrenade();
+  if (hasRelic('core_inestable') && state.shotCount % 12 === 0) firePureLance(baseDir, dmgBase);
+
   for (let p = 0; p < w.pellets; p++) {
     const dir = baseDir.clone();
     if (w.spread) {
@@ -2437,26 +2833,41 @@ function shoot() {
       if (e.dead || e.spawn > 0) continue;
       for (const part of [{ y: 1.98, r: .32, head: true }, { y: 1.25, r: e.radius, head: false }]) {
         const center = e.group.position.clone().add(new THREE.Vector3(0, part.y * e.group.scale.y, 0));
-        const oc = center.clone().sub(origin), t = oc.dot(dir); if (t < 1 || t > 85) continue;
+        const oc = center.clone().sub(origin), t = oc.dot(dir); if (t < 1 || t > maxT) continue;
         const closest = origin.clone().addScaledVector(dir, t), dist = closest.distanceTo(center);
         if (dist < part.r * e.group.scale.y) { hits.push({ e, t, head: part.head }); break; }
       }
     }
     hits.sort((a, b) => a.t - b.t);
     // Cobertura real: la utilería alta detiene el tiro (coches, contenedores, muros).
-    const blockT = propRayT(origin, dir, 80);
-    const live = blockT < 80 ? hits.filter(h => h.t < blockT) : hits;
-    const end = origin.clone().addScaledVector(dir, Math.min(blockT, live.length ? live[live.length - 1].t : 80));
-    if (blockT < 80 && p === 0) spawnBurst(end, 0xcdc7b8, 3, 1.6);
-    const mp = new THREE.Vector3(); player.userData.muzzle.getWorldPosition(mp); tracer(mp, end, w.color, .065);
+    const blockT = Math.min(propRayT(origin, dir, maxT), maxT);
+    const live = hits.filter(h => h.t < blockT);
+    const end = origin.clone().addScaledVector(dir, Math.min(blockT, live.length ? live[live.length - 1].t : maxT));
+    if (blockT < maxT && p === 0) spawnBurst(end, 0xcdc7b8, 3, 1.6);
     const limited = live.slice(0, pierce);
-    for (const h of limited) {
-      const dmg = dmgBase * (h.head ? state.headshotMult : 1);
-      damageEnemy(h.e, dmg, h.head);
-      state.runHits++; if (h.head) state.runHead++; state.runDmg += dmg;
-      spawnBurst(end, h.head ? C.white : w.color, h.head ? 7 : 4, 2);
-      if (w.explosive) explode(end, 3.6, dmgBase * .6, C.coral);
+
+    const impact = (at) => {
+      for (const h of limited) {
+        applyShotHit(h, dmgBase);
+        spawnBurst(at, h.head ? C.white : w.color, h.head ? 5 : 3, 2);
+      }
+      combatParticles?.preset(selectedCharacter, 'impact', at, dir, {});
+      playCharacterSfx(selectedCharacter, 'impact', { volume: .34 });
+    };
+
+    if (w.projectile) {
+      // Flecha / orbe arcano / haz láser: malla 3D ligera del pool. El daño
+      // llega con el proyectil, no en el instante de apretar el gatillo.
+      combatProjectiles?.spawn(w.projectile, mp, end, {
+        speed: w.projectileSpeed, characterId: selectedCharacter,
+        size: w.projectile === 'laser' ? .48 : .34,
+        onImpact: impact
+      });
+    } else {
+      // Hacha y daga: tajo inmediato de corto alcance con su slash/shockwave.
+      impact(end);
     }
+
     // --- ECO DE COMBATE ---------------------------------------------------
     // Un segundo tirador fantasma dispara desde el flanco, un instante después,
     // sobre los mismos blancos. Sube de nivel añadiendo daño y réplicas.
@@ -2483,7 +2894,9 @@ function shoot() {
 function reload() {
   if (state.reloading > 0 || state.ammo === state.maxAmmo || state.mode !== 'playing') return;
   state.reloadDur = 1.05 * (state.reloadMult || 1);
-  state.reloading = state.reloadDur; audio.reload(); $('reload-text').textContent = 'RECARGANDO NÚCLEO...';
+  state.reloading = state.reloadDur;
+  playSfx('rpg/metalClick.ogg', { volume: .32 });
+  $('reload-text').textContent = 'RECARGANDO ' + currentWeapon().name + '...';
 }
 // ---------------------------------------------------------------------------
 // DAÑO EN EL TIEMPO (quemadura y veneno). Un solo slot por hostil: el más
@@ -2532,13 +2945,12 @@ function damageEnemy(e, dmg, headshot) {
   e.hp -= d; e.flash = .08; e.hitAnim = .18; e.hitDir = (e.hitDir || 0);
   e.knock = Math.max(e.knock || 0, Math.min(.55, d * .0022));
   audio.hit();
-  // --- elementos del arma y de la build -----------------------------------
-  const w = currentWeapon();
-  if (w && w.burn) applyDot(e, (w.burn + (state.burnOnHit || 0)) * state.damage * .05, 3, 0xff6a3d);
-  else if (state.burnOnHit > 0) applyDot(e, state.burnOnHit, 3, 0xff6a3d);
+  // --- elementos de la build ------------------------------------------------
+  // El arma única ya no inyecta quemadura, ralentización ni rebote: esos
+  // efectos pertenecen a habilidades, módulos y reliquias (sistema intacto).
+  if (state.burnOnHit > 0) applyDot(e, state.burnOnHit, 3, 0xff6a3d);
   const vLvl = abilityLevel('venom');
   if (vLvl > 0) applyDot(e, (4 + 2.5 * vLvl) * (1 + state.damage / 60), 4, 0xb6ff3d);
-  if (w && w.slow) { e.slow = Math.max(e.slow || 0, 1.4); e.slowFactor = Math.min(e.slowFactor || 1, 1 - w.slow); }
   // SIFÓN VITAL: cada impacto devuelve integridad (en headshot, el triple).
   const sLvl = abilityLevel('siphon');
   if (sLvl > 0 && !e.dead) {
@@ -2558,8 +2970,8 @@ function damageEnemy(e, dmg, headshot) {
       _chainDepth--;
     }
   }
-  // CADENA: el proyectil salta a los hostiles cercanos (arma y perk de NYX).
-  const chainCount = (w && w.chain ? w.chain : 0) + (state.chainBonus || 0);
+  // CADENA: el proyectil salta a los hostiles cercanos (perk de la build).
+  const chainCount = state.chainBonus || 0;
   if (chainCount > 0 && _chainDepth < 3) {
     _chainDepth++;
     let from = e;
@@ -2613,7 +3025,9 @@ function killEnemy(e, headshot) {
   }
   if (state.combo >= 5) tryGrantAchievement('combo50');
   if (activeSynergies().length > 0) tryGrantAchievement('synergy');
-  if (state.weapons.length > 0 && Meta.seen('utility', 'medkit') && Meta.seen('melee', 'hammer')) tryGrantAchievement('arsenal');
+  // Logro de arsenal redefinido: ya no hay armas extra, se concede al potenciar
+  // el arma única con una bendición y llevar tres habilidades activas.
+  if (state.weaponBlessing > 0 && Object.keys(state.abilities).length >= 3) tryGrantAchievement('arsenal');
   state.combo = Math.min(6, state.combo + .25); state.comboTimer = 4;
   state.frenzy = Math.min(100, state.frenzy + (phantom ? 3 : 7));
   if (state.frenzy >= 100 && state.frenzyTimer <= 0) {
@@ -2632,6 +3046,13 @@ function killEnemy(e, headshot) {
   const color = e.faction === 'HIVE' ? 0xb6ff3d : e.faction === 'UMBRA' ? 0xb56bff : e.type === 'ranged' ? C.cyan : C.coral;
   const dp = e.group.position.clone().add(new THREE.Vector3(0, 1.2, 0));
   const heavy = e.type === 'boss' || e.elite;
+  // ROBO DE VIDA (El Vampiro): ocho partículas rojas de circle_01.png viajan
+  // desde el enemigo derrotado hasta el héroe. El pool las guía con homing.
+  if (!phantom && selectedCharacter === 'kira') {
+    const target = player.position.clone().add(new THREE.Vector3(0, 1.25, 0));
+    combatParticles?.preset('kira', 'lifesteal', dp, null, { target });
+    playCharacterSfx('kira', 'lifesteal', { volume: .42 });
+  }
   // Muerte por capas: metralla, destello, onda, cascara cristalina y marca en el suelo.
   spawnBurst(dp, color, e.type === 'boss' ? 60 : e.elite ? 34 : 20, e.type === 'boss' ? 8 : 5);
   spawnBurst(dp, 0xffffff, heavy ? 12 : 5, 4);
@@ -2897,6 +3318,35 @@ function updatePlayer(dt) {
   // Pose de deslizamiento: se agacha, inclina el torso atrás y estira la pierna delantera.
   player.rotation.set(.52 * slide, state.yaw + (state.modelYaw || 0), 0);
   const moving = move.lengthSq() > 0 ? 1 : 0;
+  // --- curva de tajo melé: anticipación -> cruce -> recuperación ----------
+  // `meleeSwing` baja de 1 a 0. El tramo negativo carga el arma hacia atrás
+  // y el positivo la cruza delante del cuerpo; el hacha es más amplia/lenta
+  // que la espada. Además de los clips Mixamo, mueve torso, brazos y soporte
+  // del GLB para que el filo acompañe de verdad al golpe.
+  const heavySwing = selectedCharacter === 'ronin';
+  let swingPose = 0;
+  if (state.meleeSwing > 0) {
+    const t = 1 - state.meleeSwing;
+    swingPose = (t < .26
+      ? -Math.sin(t / .26 * Math.PI * .5)
+      : Math.sin((t - .26) / .74 * Math.PI) * (1 - (t - .26) / .74 * .25))
+      * (heavySwing ? .95 : .72);
+    player.rotation.y += swingPose * .42;
+  }
+  // Mismo contrato lógico de siempre, ahora traducido a clips Mixamo por el
+  // AnimationMixer: reposo / caminar / correr / aire / dash / cuerpo a cuerpo.
+  // Las variables son exactamente las que movían las piernas y brazos del rig
+  // anterior (moving, slide, grounded, meleeSwing, ads, reloading, speed...).
+  setCharacterMotion(player, {
+    moving: !!moving, grounded: state.grounded, dashing: state.dashing, slide,
+    meleeSwing: state.meleeSwing, meleeSeq: state.meleeSeq,
+    meleeStyle: isMeleeHero() ? (selectedCharacter === 'ronin' ? 'heavy' : 'fast') : null,
+    reloading: state.reloading, ads: state.ads,
+    speed, overdrive: state.overdrive, frenzy: state.frenzy,
+    // Física vertical real: con vy + el flanco de grounded el mixer distingue
+    // despegue, doble salto, caída y compresión de aterrizaje.
+    vy: state.vy, landT: state.landT || 0
+  });
   // La cadencia de zancada va con la velocidad real: correr acelera el paso y
   // frenar lo arrastra. Antes era una constante y los pies patinaban.
   const spd01 = clamp(state.speed / 12, .55, 1.6);
@@ -2913,14 +3363,15 @@ function updatePlayer(dt) {
   }
   // Brazos: contrabalanceo al correr, recogidos al apuntar.
   const aim = state.ads ? 1 : 0;
-  ud.arms[0].rotation.x = -1.05 - state.recoil * .35 + slide * .55 - (state.meleeSwing > 0 ? Math.sin((1 - state.meleeSwing) * Math.PI) * 1.7 : 0) - stride * .2 * (1 - aim);
-  ud.arms[1].rotation.x = -1.28 - state.recoil * .45 + slide * .85 + stride * .16 * (1 - aim);
+  ud.arms[0].rotation.x = -1.05 - state.recoil * .35 + slide * .55 - swingPose * 1.15 - stride * .2 * (1 - aim);
+  ud.arms[1].rotation.x = -1.28 - state.recoil * .45 + slide * .85 + stride * .16 * (1 - aim) + swingPose * .95;
+  ud.arms[1].rotation.z = -swingPose * .55;
   ud.torso.position.y = 1.62 + breathe;
   ud.chestPlate.position.y = 1.66 + breathe;
   // Inclinación al desplazarse de lado y balanceo del impulso: el cuerpo acompaña
   // al mando en vez de deslizarse rígido.
   const strafe = (keys.KeyD || padMove.x > .35 ? 1 : 0) - (keys.KeyA || padMove.x < -.35 ? 1 : 0);
-  player.rotation.z = -strafe * .085 * moving + (state.dashRoll || 0) + Math.sin(phase * .5) * .01 * moving;
+  player.rotation.z = -strafe * .085 * moving + (state.dashRoll || 0) + Math.sin(phase * .5) * .01 * moving + swingPose * .16;
   // Compresión de aterrizaje: absorbe el impacto en el torso y las rodillas.
   if ((state.landT || 0) > 0) {
     state.landT = Math.max(0, state.landT - dt * 5);
@@ -2941,33 +3392,48 @@ function updatePlayer(dt) {
     ud.core.userData.halo.scale.setScalar(1 + od * .3 + state.recoil * .2);
   }
   ud.pAccent.emissiveIntensity = .9 + (state.overdrive > 0 ? 1.1 : 0) + state.recoil * .55;
-  const gun = player.userData.gun; gun.position.z = -.48 + state.recoil * .14; gun.rotation.x = -state.recoil * .3;
-  // Retroceso mecánico: la pieza móvil del arma corre hacia atrás y el cañón
-  // rotativo gira con la cadencia.
-  if (player.userData.bolt) player.userData.bolt.position.z = state.recoil * .085;
-  if (player.userData.barrels) player.userData.barrels.rotation.z += (state.recoil * 22 + .4) * dt;
+  // Retroceso del soporte del arma única: el GLB va colgado de él, así que
+  // todo el modelo retrocede y se inclina en vez de una pieza procedural.
+  const gun = player.userData.gun;
+  if (gun) {
+    gun.position.z = -.48 + state.recoil * .14 - swingPose * .16;
+    gun.rotation.x = -state.recoil * .3 + swingPose * .85;
+    gun.rotation.y = -swingPose * .5;
+    if (state.reloading <= 0) gun.rotation.z = swingPose * .35;
+  }
   player.userData.scarf.rotation.x = -.3 - Math.sin(state.time * 5) * .15 - moving * .35;
   if (player.userData.cloak.visible) player.userData.cloak.rotation.x = Math.sin(state.time * 2.1) * .07 - moving * .22;
   state.dash = Math.min(1, state.dash + dt / state.dashRecovery);
   state.fireTimer = Math.max(0, state.fireTimer - dt);
   // Temporizadores de las ranuras de carga y del gato.
   if (state.meleeCd > 0) state.meleeCd -= dt;
-  if (state.meleeSwing > 0) state.meleeSwing = Math.max(0, state.meleeSwing - dt * 3.2);
+  // La ventana del clip acompaña al enfriamiento: .5 s para el hacha y .34 s
+  // para la espada. Antes era .31 s para ambos y el combo Mixamo (4.3 s a 3×)
+  // solo alcanzaba a mostrar la preparación del primer golpe.
+  if (state.meleeSwing > 0) state.meleeSwing = Math.max(0, state.meleeSwing - dt * (heavySwing ? 2.0 : 2.9));
   if (state.catCd > 0) state.catCd -= dt;
   if ((state.invuln || 0) > 0) state.invuln -= dt;
   if ((state.hurtT || 0) > 0) state.hurtT -= dt;
   if ((state.retaliateT || 0) > 0) state.retaliateT -= dt;
   if ((state.slowT || 0) > 0) { state.slowT -= dt; if (state.slowT <= 0) state.slowFactor = 1; }
   if (state.reloading > 0) {
-    state.reloading -= dt; player.userData.gun.rotation.z = Math.sin(((state.reloadDur || 1.05) - state.reloading) * 5) * .5;
-    if (state.reloading <= 0) { state.ammo = state.maxAmmo; player.userData.gun.rotation.z = 0; $('reload-text').textContent = 'MUNICIÓN DE FASE'; audio.tone(620, .06, 'square', .08, 80); }
+    state.reloading -= dt;
+    if (gun) gun.rotation.z = Math.sin(((state.reloadDur || 1.05) - state.reloading) * 5) * .5;
+    if (state.reloading <= 0) {
+      state.ammo = state.maxAmmo;
+      if (gun) gun.rotation.z = 0;
+      $('reload-text').textContent = currentWeapon().name + ' // LISTO';
+      audio.tone(620, .06, 'square', .08, 80);
+    }
   }
   if (state.overdrive > 0) state.overdrive -= dt;
   if (state.frenzyTimer > 0) {
     state.frenzyTimer -= dt;
     if (state.frenzyTimer <= 0) { state.frenzy = 0; document.body.classList.remove('frenzy'); }
   } else state.frenzy = Math.max(0, state.frenzy - dt * 5);
-  if (mouseDown || state.padFire) shoot();
+  // Un único botón de ataque: CLIC / gatillo. El enrutamiento lo decide el
+  // arma única del héroe (melé o a distancia), no una tecla auxiliar.
+  if (mouseDown || state.padFire) primaryAttack();
   if (state.comboTimer > 0) { state.comboTimer -= dt; if (state.comboTimer <= 0) state.combo = 1; }
   // -------------------------------------------------- cámara de tercera persona anclada
   // El brazo de cámara es rígido: el personaje no se mueve del mismo punto de la pantalla
@@ -3471,17 +3937,9 @@ function roundOfSlot(list, wave) {
   });
 }
 function checkSlotUnlocks() {
-  for (const m of MELEE) {
-    if (state.meleeId === m.id) continue;
-    const num = Number((m.unlock.match(/\d+/) || ['0'])[0]);
-    if (m.unlock === 'DESDE EL INICIO') continue;
-    if (state.wave >= num && !Meta.seen('melee', m.id)) {
-      Meta.markSeen('melee', m.id);
-      state.meleeId = m.id; syncMeleeModel();
-      announce('CUERPO A CUERPO // ' + m.name);
-      fx.flash(m.color, .14, 180); audio.tone(660, .2, 'square', .1, 240);
-    }
-  }
+  // Ya no existen desbloqueos de armas cuerpo a cuerpo por ronda: el arma
+  // única del héroe está disponible desde el primer segundo de la incursión.
+  // Solo la ranura de utilidad (G) mantiene su progresión de descubrimientos.
   for (const u of UTILITY) {
     const order = { grenade: 0, medkit: 2, stim: 6, pylon: 9 };
     if (state.wave >= order[u.id] && !Meta.seen('utility', u.id)) {
@@ -3491,15 +3949,26 @@ function checkSlotUnlocks() {
   }
   hudDirty = true;
 }
-function meleeInfo() { return MELEE.find(m => m.id === state.meleeId) || MELEE[0]; }
+// Ataque primario (CLIC / gatillo) del bárbaro y el vampiro: es el MISMO arma
+// única, no una segunda hoja. Sus VFX y SFX son los del héroe; el daño y el
+// alcance salen de meleeInfo(). `meleeSeq` reinicia el clip en cada tajo.
 function meleeAttack() {
   if (state.mode !== 'playing' || state.meleeCd > 0) return;
   const m = meleeInfo();
+  const heavy = m.key === 'hacha';
   state.meleeCd = m.cooldown * (state.stim > 0 ? .75 : 1);
   state.meleeSwing = 1;
-  audio.noise(.09, .14); audio.tone(240, .12, 'square', .12, -140);
+  state.meleeSeq = (state.meleeSeq || 0) + 1;
   const dir = new THREE.Vector3(-Math.sin(state.yaw), 0, -Math.cos(state.yaw));
   const origin = player.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+  // EL ARCO VA DELANTE DEL HÉROE, no en la punta del arma: las partículas no
+  // se veían porque `shoot()` las emitía en `player.userData.muzzle`, pegadas
+  // al cuerpo y a la cámara en tercera persona, y sin animación de tajo.
+  const at = origin.clone().addScaledVector(dir, Math.min(2.1, m.range * .62));
+  const near = origin.clone().addScaledVector(dir, Math.min(1.05, m.range * .32));
+  combatParticles?.preset(selectedCharacter, 'melee', at, dir, { heavy });
+  combatParticles?.preset(selectedCharacter, 'melee', near, dir, { heavy, lite: true });
+  playCharacterSfx(selectedCharacter, 'shoot', { volume: .5 });
   const dmgBase = state.damage * m.damage * (state.overdrive > 0 ? 1.2 : 1) * (state.meleeMult || 1);
   let hitAny = false;
   for (const e of enemies) {
@@ -3513,37 +3982,38 @@ function meleeAttack() {
     damageEnemy(e, dmgBase, false);
     e.knock = Math.max(e.knock || 0, m.knock);
     e.lastHitBy = 'melee';
-    // Especiales por arma:
-    if (m.id === 'hammer') { if (e.armor > 0) breakArmor(e); }
-    if (m.id === 'claws') {
-      state.hp = Math.min(state.maxHp, state.hp + 3);
+    const ep = e.group.position.clone().add(new THREE.Vector3(0, 1.2 * e.group.scale.y, 0));
+    combatParticles?.preset(selectedCharacter, 'impact', ep, dir, {});
+    // Firma Kenney propia del héroe, solo si el golpe ha entrado de verdad.
+    emitHitParticles(e);
+    // Hacha: quiebra blindaje. Daga: drena vida y acumula descarga carmesí.
+    if (m.key === 'hacha' && e.armor > 0) breakArmor(e);
+    if (m.key === 'daga') {
+      state.hp = Math.min(state.maxHp, state.hp + 2.5 * (state.healMult || 1));
       state.meleeCombo++;
       if (state.meleeCombo >= 8) {
         state.meleeCombo = 0;
-        explode(e.group.position.clone().add(new THREE.Vector3(0, 1, 0)), 4, state.damage * 1.6, C.coral);
-        announce('DESCARGA DE GARRAS');
+        explode(ep, 4, state.damage * 1.6, 0xe8434f);
+        announce('DESCARGA CARMESÍ');
       }
     }
   }
-  if (hitAny) spawnBurst(origin.clone().addScaledVector(dir, 1.6), C.cyan, 8, 3);
-  if (m.id === 'hammer' && hitAny) {
-    explode(origin.clone().addScaledVector(dir, 1.4), 4, dmgBase * .5, 0xffbf47);
-    ringPulse(origin.clone().addScaledVector(dir, 1.4), 0xffbf47, 4.4, .35);
+  if (hitAny) {
+    spawnBurst(at, m.key === 'hacha' ? 0xffbf47 : wColorOf(), 8, 3);
+    playCharacterSfx(selectedCharacter, 'impact', { volume: .35 });
   }
-  if (m.id === 'lance' && hitAny) {
-    // Estocada con impulso: avanza sin atravesar la utilería.
-    const dest = player.position.clone().addScaledVector(dir, 2.2);
-    resolveProps(dest, .55, state.py);
-    player.position.x = clamp(dest.x, -ARENA + 1, ARENA - 1);
-    player.position.z = clamp(dest.z, -ARENA + 1, ARENA - 1);
-    tracer(origin, origin.clone().addScaledVector(dir, m.range), 0xb56bff, .12);
+  if (m.key === 'hacha' && hitAny) {
+    explode(at, 4, dmgBase * .5, 0xffbf47);
+    ringPulse(at, 0xffbf47, 4.4, .35);
   }
-  if (m.id === 'blade' && hitAny) {
-    // Corte fantasma: recupera el dash y un segundo de invulnerabilidad.
+  if (m.key !== 'hacha' && m.key !== 'daga' && hitAny) {
+    // Golpe rápido de las armas a distancia: recuperar el dash y 1 s de
+    // invulnerabilidad (heredero del antiguo CORTE FANTASMA).
     state.dash = 1; state.invuln = Math.max(state.invuln || 0, 1);
   }
   $('hitmarker').className = hitAny ? 'show' : ''; if (hitAny) setTimeout(() => $('hitmarker').className = '', 90);
 }
+function wColorOf() { return currentWeapon().color; }
 
 // ---------------------------------------------------------------- utilidad
 function utilityInfo() { return UTILITY.find(u => u.id === state.utilityId) || UTILITY[0]; }
@@ -4230,8 +4700,11 @@ function updateEnemies(dt) {
     }
     document.exitPointerLock?.();
     const finished = state.wave > 0 && state.wave % ROUNDS.perWorld === 0;
-    if (finished) { setTimeout(() => worldComplete(), 1200); announce('MUNDO DOMINADO'); }
-    else { setTimeout(() => showUpgradeDraft(), 1300); announce('SECTOR PURIFICADO'); }
+    // Un solo temporizador pendiente: si algo lo reemplaza, el anterior se
+    // cancela (evita dobles borradores); setWorldView lo cancela para QC.
+    clearTimeout(waveFlowTimer);
+    if (finished) { waveFlowTimer = setTimeout(() => worldComplete(), 1200); announce('MUNDO DOMINADO'); }
+    else { waveFlowTimer = setTimeout(() => showUpgradeDraft(), 1300); announce('SECTOR PURIFICADO'); }
   } else if (state.mode === 'playing' && state.pending > 0) {
     state.reinforceTimer -= dt;
     if (state.reinforceTimer <= 0 && alive < 6) {
@@ -4280,7 +4753,7 @@ function updateHUD() {
   $('hp-number').textContent = Math.ceil(state.hp);
   const hpRatio = state.maxHp > 0 ? state.hp / state.maxHp : 1;
   $('health-bar').style.width = (hpRatio * 100) + '%';
-  $('health-bar').style.background = hpRatio < .3 ? '#ff4d38' : '#6ef7e7';
+  $('health-bar').style.background = hpRatio < .3 ? '#e2683f' : '#9bcf5a';
   const low = $('lowhp');
   if (low) low.classList.toggle('on', hpRatio < .32 && state.mode === 'playing');
   $('ammo').textContent = String(state.ammo).padStart(2, '0');
@@ -4294,9 +4767,9 @@ function updateHUD() {
   const shieldLine = $('shield-line');
   if (state.maxShield > 0) { shieldLine.classList.remove('hidden'); $('shield-bar').style.width = (state.shield / state.maxShield * 100) + '%'; }
   else shieldLine.classList.add('hidden');
-  // Ranuras de cuerpo a cuerpo y utilidad + gato + objetivo de la ronda.
+  // Ataque primario melé (sin tecla E) + utilidad + gato + objetivo.
   const melEl = $('melee-cd');
-  if (melEl) melEl.textContent = state.meleeCd > 0 ? Math.ceil(state.meleeCd * 10) / 10 + 's' : 'E';
+  if (melEl) melEl.textContent = state.meleeCd > 0 ? Math.ceil(state.meleeCd * 10) / 10 + 's' : 'LISTO';
   const catEl = $('cat-status');
   if (catEl) {
     if (state.catOut && state.cat) catEl.textContent = '❥ GATO-9 ' + Math.max(0, Math.round(state.cat.hp)) + ' HP';
@@ -4399,16 +4872,16 @@ function renderBuild() {
     const star = state.resonances.includes(f + ':t2') ? 2 : state.resonances.includes(f + ':t1') ? 1 : 0;
     const next = RESONANCES[f];
     const goal = star === 0 ? next.t1.at : star === 1 ? next.t2.at : 0;
-    return `<div class="build-fam" style="--fam:${def.color}"><span>${def.icon} ${def.name}</span><b>${lv}${star ? ' <i>★' + star + '</i>' : goal ? ' <i>→' + goal + '</i>' : ''}</b></div>`;
+    return `<div class="build-fam" style="--fam:${uiGem(def.color)}"><span>${def.icon} ${def.name}</span><b>${lv}${star ? ' <i>★' + star + '</i>' : goal ? ' <i>→' + goal + '</i>' : ''}</b></div>`;
   }).join('');
   const modRows = MODULES.filter(m => state.modules[m.id]).map(m =>
-    `<div class="build-mod" style="--fam:${FAMILIES[m.family].color}"><span>${m.icon} ${m.name}</span><b>${state.modules[m.id]}/${m.max}</b></div>`).join('');
+    `<div class="build-mod" style="--fam:${uiGem(FAMILIES[m.family].color)}"><span>${m.icon} ${m.name}</span><b>${state.modules[m.id]}/${m.max}</b></div>`).join('');
   const extra = Object.keys(state.abilities).map(k => { const a = ABILITIES.find(x => x.id === k); return `<div class="build-mod"><span>${a.name}</span><b>NV.${state.abilities[k]}</b></div>`; }).join('');
   const pactRows = state.pacts.map(p => `<div class="build-mod pact"><span>${p.icon} ${p.name}</span><b>${p.curse}</b></div>`).join('');
   // Reliquias: una línea por pieza, con su regla resumida.
   const relicRows = (state.relics || []).map(id => {
     const r = relicById(id); if (!r) return '';
-    return `<div class="build-mod relic" style="--fam:${r.color}"><span>${r.icon} ${r.name}</span><b>${r.tier}</b></div>`;
+    return `<div class="build-mod relic" style="--fam:${uiGem(r.color)}"><span>${r.icon} ${r.name}</span><b>${r.tier}</b></div>`;
   }).join('');
   $('build-mods').innerHTML = (fams + modRows + pactRows + relicRows + extra) || 'SIN MUTACIONES';
 }
@@ -4423,20 +4896,21 @@ function showUpgradeDraft() {
   $('reroll-btn').disabled = rerolls <= 0;
   $('upgrade-options').innerHTML = currentOffers.map(m => {    const level = state.modules[m.id] || 0;
     const fam = FAMILIES[m.family];
-    // Aviso de evolución: si esta carta satura el módulo y tienes el arma base.
-    const evo = EVOLUTIONS.find(e => e.need === m.id && !state.evolved[e.id] && state.weapons.includes(e.base) && level + 1 >= m.max);
-    return `<button class="upgrade-choice" data-offer="${m.id}" style="--rarity:${fam.color}">`
-      + `<span class="upgrade-icon" style="color:${fam.color}">${m.icon}</span>`
-      + `<span class="upgrade-copy"><small style="color:${fam.color}">${fam.name} // ${m.rarity}</small><b>${m.name}</b><span>${m.desc}</span>`
-      + (evo ? `<em class="evo-tag">▲ EVOLUCIONA: ${evo.name}</em>` : '')
+    // Aviso de bendición: si esta carta satura el don, el arma ÚNICA del héroe
+    // gana daño y cadencia. Ya no depende de tener un arma base de botín.
+    const evo = EVOLUTIONS.find(e => e.need === m.id && !state.weaponEvolved?.[e.id] && level + 1 >= m.max);
+    return `<button class="upgrade-choice" data-offer="${m.id}" style="--rarity:${uiGem(fam.color)}">`
+      + `<span class="upgrade-icon" style="color:${uiGem(fam.color)}">${m.icon}</span>`
+      + `<span class="upgrade-copy"><small style="color:${uiGem(fam.color)}">${fam.name} // ${m.rarity}</small><b>${m.name}</b><span>${m.desc}</span>`
+      + (evo ? `<em class="evo-tag">▲ BENDICIÓN: ${evo.name}</em>` : '')
       + `</span><span class="upgrade-level">${level ? 'NIVEL' : 'NUEVO'}<b>${level + 1}/${m.max}</b></span></button>`;
   }).join('');
   // Salvaguarda: si TODOS los módulos están saturados (modo infinito muy largo),
   // la ronda tiene que poder cerrarse igualmente.
   if (!currentOffers.length) {
-    $('upgrade-options').innerHTML = `<button class="upgrade-choice" data-skip="1" style="--rarity:#6ef7e7">`
-      + `<span class="upgrade-icon" style="color:#6ef7e7">✓</span>`
-      + `<span class="upgrade-copy"><small style="color:#6ef7e7">ARSENAL // SATURADO</small><b>TODOS LOS MÓDULOS AL MÁXIMO</b>`
+    $('upgrade-options').innerHTML = `<button class="upgrade-choice" data-skip="1" style="--rarity:#ffcf4a">`
+      + `<span class="upgrade-icon" style="color:#ffcf4a">✓</span>`
+      + `<span class="upgrade-copy"><small style="color:#ffcf4a">EQUIPO // COMPLETO</small><b>TODOS LOS DONES AL MÁXIMO</b>`
       + `<span>No queda nada que instalar. Cierra la ronda y sigue acumulando chips.</span></span>`
       + `<span class="upgrade-level">BONUS<b>+400</b></span></button>`;
     document.querySelector('[data-skip]').onclick = () => {
@@ -4530,14 +5004,12 @@ function resolveSlots(result) {
       case 'epic': {
         const epics = MODULES.filter(m => m.rarity === 'ÉPICA' && (state.modules[m.id] || 0) < m.max);
         for (let i = 0; i < 2 && epics.length; i++) { const m = pick(epics); installModule(m.id); }
-        const specials = Object.keys(WEAPONS).filter(k => WEAPONS[k].special && !state.weapons.includes(k));
-        if (specials.length) { state.weapons.push(pick(specials)); state.weaponIndex = state.weapons.length - 1; }
-        text = '¡JACKPOT! DOS MUTACIONES ÉPICAS + ARMA ESPECIAL'; break;
+        blessWeapon(.15);
+        text = '¡JACKPOT! DOS MUTACIONES ÉPICAS + BENDICIÓN DEL ARMA ÚNICA'; break;
       }
       case 'wpn': {
-        const specials = Object.keys(WEAPONS).filter(k => WEAPONS[k].special && !state.weapons.includes(k));
-        if (specials.length) { state.weapons.push(pick(specials)); state.weaponIndex = state.weapons.length - 1; text = '¡TRIPLE ARMA! ' + currentWeapon().name; }
-        else { state.damage *= 1.3; text = '¡TRIPLE ARMA! +30% DAÑO'; }
+        blessWeapon(.22);
+        text = '¡TRIPLE BENDICIÓN! ' + currentWeapon().name + ' +22% DAÑO';
         break;
       }
       case 'dmg': state.damage *= 1.25; state.headshotMult += .5; text = '¡TRIPLE DAÑO! +25% DAÑO Y +0.5 HEADSHOT'; break;
@@ -4550,9 +5022,8 @@ function resolveSlots(result) {
       case 'dmg': state.damage *= 1.12; text = 'PAR DE DAÑO: +12% DAÑO'; break;
       case 'def': state.maxShield += 35; state.shield = state.maxShield; text = 'PAR DE ESCUDO: +35 ESCUDO'; break;
       case 'wpn': {
-        const specials = Object.keys(WEAPONS).filter(k => WEAPONS[k].special && !state.weapons.includes(k));
-        if (specials.length) { state.weapons.push(pick(specials)); state.weaponIndex = state.weapons.length - 1; text = 'PAR DE ARMAS: ' + currentWeapon().name; }
-        else text = 'PAR DE ARMAS: +150 CHIPS', state.chips += 150;
+        blessWeapon(.1);
+        text = 'PAR DE BENDICIONES: ' + currentWeapon().name + ' +10% DAÑO';
         break;
       }
       case 'epic': {
@@ -4600,13 +5071,22 @@ function clearGame() {
   if (auraGroup) auraGroup.visible = false;
   // Arsenal extendido: torretas, señuelos espectrales y meteoros en vuelo.
   for (const t of turrets) { scene.remove(t.group); disposeObject3D(t.group); } turrets.length = 0;
-  for (const gh of ghosts) { scene.remove(gh.model); if (gh.model.userData.ghostMat) gh.model.userData.ghostMat.dispose(); } ghosts.length = 0;
+  for (const gh of ghosts) {
+    scene.remove(gh.model);
+    if (gh.model.userData.ghostMat) gh.model.userData.ghostMat.dispose();
+    disposeCharacterGhost(gh.model);
+  } ghosts.length = 0;
   meteors.length = 0; state.spiralT = 0; state.spiralHit = {};
 
   const c = CHARACTERS[selectedCharacter];
   const bonus = Meta.getBonuses(selectedCharacter);
   currentOffers = []; currentPacts = []; lootLevels = {};
-  state.abilities = {}; state.timers = {}; state.weapons = []; state.weaponIndex = -1;
+  state.abilities = {}; state.timers = {};
+  // Cada incursión vuelve a empuñar el arma única "de fábrica": las
+  // bendiciones no se heredan entre partidas. Los pools se vacían pero NO se
+  // destruyen (se reutilizan las mismas mallas / instancias).
+  state.weaponBlessing = 0; state.weaponEvolved = {};
+  combatProjectiles?.clear(); combatParticles?.clear();
   rerolls = 2 + (bonus.rerolls || 0);
   Object.assign(state, {
     hp: c.hp + bonus.maxHp, maxHp: c.hp + bonus.maxHp,
@@ -4625,7 +5105,7 @@ function clearGame() {
     critChance: .09, critMult: 1.65, ads: false, dashPunch: 0, dashRoll: 0, camDip: 0, slide: 0,
     photo: false, modifier: null, modifiers: [], scoreMult: 1, regen: bonus.regen,
     pullT: 0, pullX: 0, pullZ: 0, pullForce: 0,
-    meleeId: 'blade', meleeCd: 0, meleeSwing: 0, meleeCombo: 0, meleeKills: 0, meleeUnlocked: 1,
+    meleeId: 'blade', meleeCd: 0, meleeSwing: 0, meleeSeq: 0, meleeCombo: 0, meleeKills: 0, meleeUnlocked: 1,
     utilityId: 'grenade', utilityCd: 0, utilityCharges: UTILITY[0].charges, utilityMax: UTILITY[0].charges, utilityUnlocked: 1, stim: 0,
     invuln: 0, obj: null, lastHit: null, bossHitTaken: false,
     runStart: state.time, runShots: 0, runHits: 0, runHead: 0, runDmg: 0, runTaken: 0,
@@ -4644,9 +5124,9 @@ function clearGame() {
   // ---- regla propia de cada operador nuevo --------------------------------
   // No son números sueltos: cada perk cambia una decisión dentro de la partida.
   applyOperatorPerk(c.perk);
-  syncMeleeModel(); syncUtilityHUD();
-  // La hoja de inicio y la granada de serie entran en el códice desde el arranque.
-  Meta.markSeen('melee', state.meleeId);
+  syncWeaponHUD(); syncUtilityHUD();
+  // La granada de serie entra en el códice desde el arranque; el arma única
+  // se registra en startGame() con la clave real del héroe.
   Meta.markSeen('utility', state.utilityId);
   if (bonus.companions > 0) for (let i = 0; i < bonus.companions; i++) spawnCompanion(false);
   currentLevel = LEVELS.find(l => l.id === selectedLevelId) || LEVELS[0];
@@ -4656,7 +5136,7 @@ function clearGame() {
   applyCharacterAppearance(); syncAmmo();
   $('boss-wrap').classList.add('hidden'); $('killfeed').innerHTML = '';
   document.body.classList.remove('frenzy');
-  document.body.style.setProperty('--cyan', currentLevel.accent);
+  document.body.style.setProperty('--cyan', uiGem(currentLevel.accent));
   hudDirty = true; updateHUD();
 }
 function lockPointer() { if (window.__NR_SMOKE) return; const request = renderer.domElement.requestPointerLock?.(); if (request?.catch) request.catch(() => { }); }
@@ -4797,7 +5277,18 @@ $('slot-spin').onclick = spinSlots;
 $('music-btn').onclick = () => { const on = music.setEnabled(!music.enabled); $('music-btn').textContent = on ? 'MÚSICA: ON' : 'MÚSICA: OFF'; };
 $('menu-music-btn').onclick = () => { const on = music.setEnabled(!music.enabled); $('menu-music-btn').textContent = on ? 'MÚSICA: ON' : 'MÚSICA: OFF'; };
 $('hud-menu-btn').onclick = () => pause();
-document.querySelectorAll('[data-character]').forEach(card => card.onclick = () => { audio.tone(480, .09, 'square', .08, 180); selectCharacter(card.dataset.character); });
+buildOperatorRoster();
+$('op-roster')?.addEventListener('click', e => {
+  const item = e.target.closest('[data-character]'); if (!item) return;
+  audio.tone(480, .09, 'square', .08, 180);
+  selectCharacter(item.dataset.character);
+});
+if ($('op-confirm')) $('op-confirm').onclick = () => {
+  selectCharacter(selectedCharacter);
+  audio.tone(720, .12, 'square', .09, 240);
+  selectHubTab('sector');
+};
+if ($('armory-search')) $('armory-search').addEventListener('input', () => renderArmory());
 document.querySelectorAll('[data-level]').forEach(card => card.onclick = () => { audio.tone(480, .09, 'square', .08, 180); selectLevel(card.dataset.level); });
 
 addEventListener('keydown', e => {
@@ -4806,8 +5297,8 @@ addEventListener('keydown', e => {
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') dash();
   if (e.code === 'KeyR') reload();
   if (e.code === 'KeyQ') overdrive();
-  if (e.code === 'KeyF') cycleWeapon();
-  if (e.code === 'KeyE') meleeAttack();
+  // F (cambiar arma) y E (cuerpo a cuerpo) ya no existen: cada héroe tiene
+  // un arma única y el melé se ejecuta con el mismo clic que el disparo.
   if (e.code === 'KeyG') useUtility();
   if (e.code === 'KeyX') cycleUtility();
   if (e.code === 'KeyC') summonCat();
@@ -4871,12 +5362,18 @@ function fillBuildSummary() {
     ['CADENCIA', (1 / (state.fireRate * w.fireRate)).toFixed(1) + '/s'], ['VELOCIDAD', state.speed.toFixed(1)],
     ['CRÍTICO', Math.round(state.critChance * 100) + '%'], ['REDUCCIÓN', Math.round((1 - state.damageTaken) * 100) + '%']];
   const melee = meleeInfo(), util = utilityInfo();
+  // Segunda ranura = el ataque primario con CLIC. Ya no es una ranura «E // 
+  // CUERPO A CUERPO»: el melé solo existe para bárbaro y vampiro y comparte
+  // botón con el disparo. Se conservan 4 .bs-slot (contrato del smoke test).
+  const attackSlot = isMeleeHero()
+    ? `<div class="bs-slot" style="--cc:${melee.color}"><b>CLIC // ATAQUE MELÉ</b><span>${melee.icon} ${melee.name} · ${melee.sub}</span><small>${melee.damage.toFixed(1)}× DAÑO · ${melee.range.toFixed(1)}m · ${melee.cooldown.toFixed(2)}s${state.weaponBlessing > 0 ? ' · BENDICIÓN +' + Math.round(state.weaponBlessing * 100) + '%' : ''}</small></div>`
+    : `<div class="bs-slot" style="--cc:${w.color ? '#' + w.color.toString(16).padStart(6, '0') : '#ffcf4a'}"><b>CLIC // DISPARO</b><span>↯ ${w.name} · ${w.sub}</span><small>${(1 / (state.fireRate * w.fireRate)).toFixed(1)} DISPAROS/s · ${w.pellets} PROYECTIL(ES)</small></div>`;
   $('buildsum-body').innerHTML = `
-    <div class="bs-col"><h4>OPERADOR</h4>
+    <div class="bs-col"><h4>HÉROE</h4>
       <div class="bs-stats">${stats.map(([n, v]) => `<div class="build-stat"><span>${n}</span><b>${v}</b></div>`).join('')}</div></div>
     <div class="bs-col"><h4>RANURAS DE CARGA</h4>
-      <div class="bs-slot" style="--cc:${w.color ? '#' + w.color.toString(16).padStart(6, '0') : '#6ef7e7'}"><b>PRINCIPAL</b><span>${w.name} · ${w.sub}</span><small>${state.ammo}/${state.maxAmmo}</small></div>
-      <div class="bs-slot" style="--cc:${melee.color}"><b>E // CUERPO A CUERPO</b><span>${melee.icon} ${melee.name} · ${melee.sub}</span><small>${melee.special.name}</small></div>
+      <div class="bs-slot" style="--cc:${w.color ? '#' + w.color.toString(16).padStart(6, '0') : '#ffcf4a'}"><b>PRINCIPAL</b><span>${w.name} · ${w.sub}</span><small>${state.ammo}/${state.maxAmmo}</small></div>
+      ${attackSlot}
       <div class="bs-slot" style="--cc:${util.color}"><b>G // UTILIDAD</b><span>${util.icon} ${util.name}</span><small>${state.utilityCharges}/${util.charges} · ${state.utilityCd > 0 ? Math.ceil(state.utilityCd) + 's' : 'LISTA'}</small></div>
       <div class="bs-slot" style="--cc:#ffd34d"><b>C // MASCOTA</b><span>❥ GATO-9</span><small>${state.catOut ? 'EN CAMPO · ' + Math.max(0, Math.round(state.cat.hp)) + ' HP' : state.catCd > 0 ? 'RECALIBRÁNDOSE ' + Math.ceil(state.catCd) + 's' : 'LISTO'}</small></div></div>
     <div class="bs-col"><h4>MUTACIONES Y HABILIDADES</h4>
@@ -5006,7 +5503,10 @@ function animate() {
       let alive = 0; for (const e of enemies) if (!e.dead) alive++;
       music.setIntensity(Math.min(1, alive / 20 * .6 + (state.frenzyTimer > 0 ? .4 : 0) + state.wave * .02));
     }
-    bloom.strength = .55 + (state.frenzyTimer > 0 ? .35 : 0) + Math.min(.18, state.combo * .02) + state.dashPunch * .12;
+    // Bloom ESTABLE: el mundo fija su bloom y se queda fijo. Las sumas por
+    // combo/frenesi/dash hacian oscilar el brillo de toda la escena mientras
+    // se juega (el combo cambia cada segundo) = bombeo continuo que cansa.
+    bloom.strength = currentBloom;
     // Audio reactivo: latido grave cuando la integridad es crítica.
     heartT -= raw;
     if (state.maxHp > 0 && state.hp / state.maxHp < .32 && heartT <= 0) {
@@ -5023,6 +5523,14 @@ function animate() {
   } else if (state.mode === 'transition') {
     updateProjectiles(dt); updateLoot(dt);
   }
+  // Un único mixer.update() por frame, también en menú/hub para que el idle
+  // sintetizado siga vivo. En partida usa el dt de simulación (respeta el
+  // hitstop / cámara lenta igual que la física del suelo).
+  updateCharacterGLB(player, state.mode === 'playing' ? dt : raw);
+  // Los proyectiles viajan con el dt de simulación (respetan hitstop / cámara
+  // lenta); las partículas usan el tiempo real para no congelarse en un golpe.
+  combatProjectiles?.update(dt);
+  combatParticles?.update(raw);
   vfx.update(dt);
   fx.update(camera, raw);
   // ---- estado que alimenta el pase cinematográfico ------------------------
@@ -5063,9 +5571,9 @@ function pollGamepad(dt) {
   state.padFire = b(7) || dz(pad.buttons[7]?.value || 0) > .4;
   const edge = i => { const now = b(i), was = !!padPrev[i]; padPrev[i] = now; return now && !was; };
   if (edge(0)) jump();
-  if (edge(1)) meleeAttack();
+  // El botón 1 (antes melé) y el 3 (antes cambio de arma) quedan libres:
+  // el ataque primario es el gatillo RT/7, que enruta primaryAttack().
   if (edge(2)) reload();
-  if (edge(3)) cycleWeapon();
   if (edge(4)) useUtility();
   if (edge(5)) overdrive();
   if (edge(6)) dash();
@@ -5073,6 +5581,37 @@ function pollGamepad(dt) {
 
 // ---------------------------------------------------------------- arranque
 Meta.loadMeta();
+// El parseo del .glb (34 MB, texturas PNG embebidas) arranca en paralelo al
+// resto del boot: cuando el jugador abra el hub ya estará en caché.
+preloadCharacterGLB(selectedCharacter);
+// Los 56 GLB del Kenney Nature Kit se parsean en paralelo al boot. Cuando
+// llegan, se reconstruye la arena del Mundo 1 para sustituir el suelo vacío
+// por los modelos reales; en los otros once mundos no cambia nada.
+const natureBoot = initNatureKit();
+natureBoot.then((diag) => {
+  window.__NR_NATURE_READY = !!diag;
+  if (diag && window.__NR_NATURE_PENDING && currentLevel.id === 'rooftop') {
+    window.__NR_NATURE_PENDING = false;
+    rebuildArena();
+  }
+});
+// --- Arranque en paralelo del arsenal único --------------------------------
+// Los cinco GLB de arma, los sprites Kenney y los .ogg se leen por IPC sin
+// bloquear el menú. El soporte lógico del arma ya funciona desde el primer
+// frame; cuando llega el GLB se cuelga del héroe activo (incluso si el
+// jugador cambió de personaje mientras cargaba).
+const weaponBoot = initWeapons();
+const vfxBoot = combatParticles.init();
+const sfxBoot = loadSfxBank();
+Promise.all([weaponBoot, vfxBoot, sfxBoot]).then(([wd, vd, sd]) => {
+  if (wd?.ok && player) attachWeapon(player, selectedCharacter);
+  window.__NR_COMBAT_READY = !!(wd?.ok && vd?.ok && sd?.ok);
+  window.__NR_COMBAT = {
+    weapons: weaponDiagnostics(), vfx: vd || null, sfx: sfxDiagnostics(),
+    projectiles: combatProjectiles?.diag || null
+  };
+  console.log('COMBAT_ASSETS: ' + JSON.stringify(window.__NR_COMBAT));
+});
 applyCharacterAppearance();
 selectLevel(selectedLevelId);
 wireSettings();
@@ -5083,6 +5622,18 @@ refreshMenuStats();
 updateHubSummary();
 if ($('gpu-name')) $('gpu-name').title = gpuName;
 setTimeout(() => { $('boot').style.opacity = '0'; setTimeout(() => $('boot').remove(), 650); }, 1100);
+// Electron mantiene el renderer vivo entre recargas: liberar explícitamente
+// mixer, geometrías, materiales, texturas y el caché procedural evita fugas.
+window.addEventListener('beforeunload', () => {
+  combatProjectiles?.dispose();
+  combatParticles?.dispose();
+  disposeWeapons();
+  disposeSfxBank();
+  disposeAllCharacterAssets();
+  disposeOperatorCache();
+  disposeNatureKit();
+  worldManager.dispose();
+});
 animate();
 
 // utilidades de prueba
@@ -5090,8 +5641,20 @@ function testDropLoot() { spawnLootBox(player.position.clone()); }
 function testOpenLoot() { rollLoot(); }
 function testDropCompanion() { spawnCompanion(true); }
 function testSpawn(type) { return createEnemy(type, player.position.x + 8, player.position.z + 4, false, currentLevel.faction); }
-function testGrantWeapon() { state.weapons.push('rail'); state.weaponIndex = state.weapons.length - 1; syncAmmo(); }
+// El botín de armas desapareció: el gancho de prueba ahora comprueba que una
+// bendición potencia el arma única en vez de añadir otra al inventario.
+function testGrantWeapon() {
+  blessWeapon(.15);
+  return { weapon: currentWeapon().key, blessing: +(state.weaponBlessing || 0).toFixed(3), ammo: state.ammo };
+}
 function testAddChips(n) { state.chips += n; updateSlotUI(); }
+// QC: invulnerabilidad temporal para capturas automatizadas (oleadas vivas
+// mataban al héroe antes de la foto: W7 salio con la pantalla de derrota).
+function testGod(on = true) {
+  state.damageTaken = on ? 0 : 1;
+  if (on) { state.hp = state.maxHp; state.shield = state.maxShield; hudDirty = true; }
+  return { god: on, hp: state.hp };
+}
 function testClearEnemies() {
   for (const e of enemies) { if (!e.dead) { e.dead = true; scene.remove(e.group); disposeObject3D(e.group); } }
   enemies.length = 0;
@@ -5122,12 +5685,64 @@ function testElite(affixId, type = 'chaser') {
   return e ? { type: e.type, hp: Math.round(e.maxHp), affix: e.affixName || null, armor: Math.round(e.armor || 0) } : null;
 }
 function testEvolve() {
-  // Da el arma base y satura su módulo para comprobar la evolución de verdad.
+  // Saturar el don ya no transforma el arma: aplica una BENDICIÓN permanente
+  // sobre el arma única y deja constancia en state.weaponEvolved.
   const ev = EVOLUTIONS[0];
-  if (!state.weapons.includes(ev.base)) state.weapons.push(ev.base);
   const mod = moduleById(ev.need);
   while ((state.modules[ev.need] || 0) < mod.max) installModule(ev.need);
-  return { weapons: state.weapons.slice(), evolved: Object.keys(state.evolved), name: (WEAPONS[ev.id] || {}).name || null };
+  return {
+    weapon: currentWeapon().key, blessing: +(state.weaponBlessing || 0).toFixed(3),
+    evolved: Object.keys(state.weaponEvolved || {}), name: ev.name
+  };
+}
+// --- ganchos de prueba del sistema de combate ------------------------------
+function testCombat() {
+  return {
+    ready: !!window.__NR_COMBAT_READY, active: activeWeapon()?.key || null,
+    weapons: weaponDiagnostics(), vfx: combatParticles?.diag || null,
+    projectiles: combatProjectiles?.diag || null, sfx: sfxDiagnostics()
+  };
+}
+async function testFire(count = 6, gap = 75) {
+  state.mode = 'playing';
+  // Espaciado real entre disparos: si se disparan todos en el mismo frame los
+  // sprites se apilan y la captura no representa lo que ve el jugador.
+  for (let i = 0; i < count; i++) {
+    // primaryAttack() cubre ambos casos: para bárbaro/vampiro ejecuta el tajo
+    // melé real (animación + partículas de arco), para el resto el disparo.
+    state.fireTimer = 0; state.reloading = 0; state.meleeCd = 0;
+    primaryAttack();
+    if (gap) await new Promise(r => setTimeout(r, gap));
+  }
+  return {
+    attack: isMeleeHero() ? 'melee' : 'ranged',
+    spawned: combatProjectiles?.diag.spawned || 0,
+    emitted: combatParticles?.diag.emitted || 0,
+    played: sfxDiagnostics().played
+  };
+}
+// Regresión del pool: un proyectil reciclado debe RECORRER su trayectoria y
+// ejecutar el callback de impacto (el daño ya no se aplica al apretar el
+// gatillo). Sin esto un cambio en update() podría dejar los disparos mudos.
+async function testProjectileHit() {
+  const e = createEnemy('chaser', player.position.x, player.position.z - 6, false, currentLevel.faction);
+  e.spawn = 0; e.speed = 0; e.cooldown = 99;
+  const before = e.hp;
+  const spawned0 = combatProjectiles?.diag.spawned || 0;
+  let arrived = 0;
+  const from = player.position.clone().add(new THREE.Vector3(0, 1.4, -.4));
+  const to = from.clone().add(new THREE.Vector3(0, 0, -5));
+  combatProjectiles?.spawn('arrow', from, to, {
+    speed: 26, characterId: selectedCharacter,
+    onImpact: () => { arrived++; applyShotHit({ e, head: false }, Math.max(2, state.damage * .25)); }
+  });
+  await new Promise(r => setTimeout(r, 650));
+  const after = e.dead ? 0 : e.hp;
+  return {
+    spawned: (combatProjectiles?.diag.spawned || 0) - spawned0,
+    arrived, damaged: after < before, hpBefore: Math.round(before), hpAfter: Math.round(after),
+    live: combatProjectiles?.diag.live || 0
+  };
 }
 function testDirector(seconds = 120) {
   state.runTime += seconds;
@@ -5178,9 +5793,12 @@ function testProps() {
     out.enemies++;
     if (propAt(e.group.position.x, e.group.position.z, e.y, (e.radius || .6) * .8)) out.inside++;
   }
-  // 3. Un disparo recto a través del prop más grande queda interceptado.
-  const big = propColliders.slice().sort((a, b) => (b.hw * b.hd) - (a.hw * a.hd))[0];
-  if (big && big.h > 1.8) {
+  // 3. Un disparo recto a través del prop más ALTO queda interceptado.
+  //    (Antes se elegía el de mayor base: en el Mundo 1 eso es una roca baja
+  //    de h≈0.6, por la que un tiro a y=1.2 pasa legítimamente por encima, y
+  //    la comprobación de cobertura ni siquiera se ejecutaba.)
+  const big = propColliders.filter(c => c.h > 1.8).sort((a, b) => b.h - a.h)[0] || null;
+  if (big) {
     const ax = big.cos, az = -big.sin, d = big.hw + 5;
     const from = new THREE.Vector3(big.x - ax * d, 1.2, big.z - az * d);
     const to = new THREE.Vector3(big.x + ax * d, 1.2, big.z + az * d);
@@ -5202,8 +5820,11 @@ function testDamageNumbers() {
 function getState() {
   return {
     mode: state.mode, py: +state.py.toFixed(3), vy: +state.vy.toFixed(2), jumps: state.jumps, level: currentLevel.id, wave: state.wave,
-    weapons: state.weapons.slice(), abilities: { ...state.abilities }, chips: Math.round(state.chips),
+    weapon: currentWeapon().key, weaponBlessing: +(state.weaponBlessing || 0).toFixed(3),
+    weapons: [currentWeapon().key], abilities: { ...state.abilities }, chips: Math.round(state.chips),
     enemies: enemies.filter(e => !e.dead).length, synergies: getSynergies(),
+    shotCount: state.shotCount, meleeCd: +state.meleeCd.toFixed(2), meleeSeq: state.meleeSeq || 0,
+    attack: isMeleeHero() ? 'melee' : 'ranged',
     modifier: state.modifier ? state.modifier.id : null, fov: +camera.fov.toFixed(1), photo: !!state.photo
   };
 }
@@ -5223,8 +5844,11 @@ function testBalance(rounds = 15) {
   return out;
 }
 function testMelee() {
+  const m = meleeInfo();
+  state.meleeCd = 0;              // el gancho debe ejecutar el tajo siempre
   meleeAttack();
-  return { id: state.meleeId, cd: +state.meleeCd.toFixed(2), unlocked: MELEE.filter(m => Meta.seen('melee', m.id)).length };
+  return { id: m.key, name: m.name, weapon: currentWeapon().key,
+    cd: +state.meleeCd.toFixed(2), seq: state.meleeSeq, unlocked: 1 };
 }
 function testUtility() {
   state.utilityCd = 0; state.utilityCharges = utilityInfo().charges;
@@ -5316,10 +5940,59 @@ export function endShowcase() {
   if (_scSaved) { platforms.push(..._scSaved.platforms); propColliders.push(..._scSaved.props); _scSaved = null; }
 }
 
+// --- Pasarela de QC de los mundos Kenney (solo automatización --worlds) -----
+// Reconstruye la arena sobre el mundo pedido con su paleta y colisiones, y
+// devuelve el diagnóstico del gestor. La vista la controla setWorldView().
+function previewWorld(worldId) {
+  const level = LEVELS.find(l => worldIdForLevel(l.id) === worldId);
+  if (!level) return { error: 'mundo sin sector asignado', worldId };
+  currentLevel = level;
+  selectedLevelId = level.id;
+  if (state.mode !== 'playing') state.mode = 'playing';
+  applyLevel();
+  rebuildArena();
+  player.position.set(0, 0, 2);
+  state.py = groundAt(0, 2, 60); state.vy = 0;
+  setWorldView(34, -.44, 0);
+  return worldManager.diagnostics();
+}
+// Cámara de inspección: distancia y pitch directos (sin suavizado) para poder
+// encuadrar la vista general del diorama y después la vista de juego.
+// Solo QC: además cierra cualquier overlay (borrador de mejora, pausa, fin de
+// mundo) y devuelve el modo a 'playing', para que las capturas vean el
+// escenario y no la interfaz.
+let waveFlowTimer = 0;   // borrador de mejora / fin de mundo pendiente
+function setWorldView(dist = 34, pitch = -.44, yaw = 0) {
+  state.pitch = pitch; state.yaw = yaw;
+  CAM.dist = dist; camDist = dist; camDistTarget = dist;
+  clearTimeout(waveFlowTimer);
+  document.getElementById('upgrade')?.classList.remove('active');
+  document.getElementById('pause')?.classList.remove('active');
+  document.getElementById('worldclear')?.classList.remove('active');
+  if (state.mode !== 'playing' && state.mode !== 'menu' && state.mode !== 'hub') state.mode = 'playing';
+  return true;
+}
+function worldDiagnostics() {
+  return {
+    ...worldManager.diagnostics(),
+    level: currentLevel.id,
+    toneMapping: renderer.toneMapping === THREE.ACESFilmicToneMapping ? 'ACESFilmic' : 'other',
+    exposure: +renderer.toneMappingExposure.toFixed(3),
+    bloom: +bloom.strength.toFixed(3), bloomThreshold: +bloom.threshold.toFixed(3),
+    hemi: +hemiLight.intensity.toFixed(2), sun: +moon.intensity.toFixed(2),
+    ambient: +ambientLight.intensity.toFixed(2),
+    shadowMap: renderer.shadowMap.type === THREE.PCFSoftShadowMap ? 'PCFSoft' : 'other',
+    fps: perf.fps, avgMs: +perf.avg.toFixed(2),
+    drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles
+  };
+}
+
 export {
   showUpgradeDraft, spawnWave, testDropLoot, testOpenLoot, testDropCompanion, testSpawn, testGrantWeapon, testAbility,
-  testAddChips, testClearEnemies, getMap, getLootLevels, getState, getSynergies, openHub, renderHubTree,
+  testAddChips, testClearEnemies, testGod, getMap, getLootLevels, getState, getSynergies, openHub, renderHubTree,
   testForceModifier, testDamageNumbers, testProps, testBalance, testMelee, testUtility, testCat, testObjective,
   testInstall, testElite, testEvolve, testDirector, getBuild, getPerf,
-  testTurret, testMeteor, testGhost, testSpiral,   testEvolveAbility, testGrantRelic, testRelicHook
+  testTurret, testMeteor, testGhost, testSpiral,   testEvolveAbility, testGrantRelic, testRelicHook,
+  testCombat, testFire, testProjectileHit,
+  previewWorld, setWorldView, worldDiagnostics
 };

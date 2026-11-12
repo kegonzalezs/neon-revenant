@@ -17,9 +17,10 @@ const CinematicShader = {
     uTime: { value: 0 },
     uAberr: { value: 0.0012 },   // aberración cromática radial (en UV)
     uBlur: { value: 0 },         // desenfoque radial de velocidad 0..1
-    uGrain: { value: 0.035 },    // grano de película
-    uScan: { value: 0.012 },     // líneas de barrido
-    uVignette: { value: 0.55 },  // viñeteado
+    uGrain: { value: 0.016 },    // grano de película (suavizado: antes 0.035)
+    uScan: { value: 0.006 },     // líneas de barrido (suavizado: antes 0.012)
+    uVignette: { value: 0.30 },  // viñeteado suave (antes 0.55: oscurecía los
+                                 // bordes y forzaba la vista en el centro)
     uDamage: { value: 0 },       // 0..1 daño reciente
     uHeat: { value: 0 },         // 0..1 sobrecarga
     uSat: { value: 1.06 },       // saturación global
@@ -82,15 +83,20 @@ const CinematicShader = {
       col = (col - 0.5) * 1.055 + 0.5;
       col += uLift * 0.06;
 
-      // ---- latido musical: quema los neones en cada bombo -----------------
-      if (uPulse > 0.001) {
+      // ---- latido musical: DESACTIVADO -------------------------------------
+      // El bombo quemaba neones y saturacion de TODA la imagen en cada beat:
+      // bombeo constante que fatiga la vista. La musica se queda; el pulso
+      // visual no. (uPulse se alimenta a 0 en update().)
+      if (false && uPulse > 0.001) {
         col = mix(vec3(lum), col, 1.0 + uPulse * 0.45);
         col *= 1.0 + uPulse * 0.09;
       }
 
-      // ---- sobrecarga: pulso cian/magenta en los bordes -------------------
+      // ---- sobrecarga: tinte cian/magenta FIJO en los bordes ---------------
+      // Antes oscilaba a 9 Hz (sin(uTime*9)): parpadeo continuo. Ahora un
+      // aviso estable, sin oscilacion.
       if (uHeat > 0.001) {
-        float pulse = 0.55 + 0.45 * sin(uTime * 9.0);
+        float pulse = 0.6;
         float edge = pow(clamp(r * 1.7, 0.0, 1.0), 2.0);
         col += uHeat * pulse * edge * vec3(0.10, 0.30, 0.34);
         col += uHeat * (1.0 - pulse) * edge * vec3(0.26, 0.05, 0.22);
@@ -158,11 +164,14 @@ export class CinematicPass extends ShaderPass {
     u.uHeat.value = this._heat;
     u.uFlash.value = this._flash;
     u.uLift.value = this._lift;
-    u.uPulse.value = this._beat || 0;
+    // Latido musical apagado: bombeo de color constante = fatiga visual.
+    u.uPulse.value = 0;
     // La aberración sigue a la velocidad: quieto casi no se nota, dasheando sí.
-    u.uAberr.value = 0.0007 + this._blur * 0.010 + this._heat * 0.0016 + this._damage * 0.0022;
-    u.uSat.value = 1.06 - this._damage * 0.22 + this._heat * 0.05;
-    u.uGrain.value = 0.030 + this._heat * 0.020;
+    u.uAberr.value = 0.0004 + this._blur * 0.008 + this._heat * 0.0013 + this._damage * 0.0018;
+    // Neutro en reposo: la saturación extra (1.06) y el grano (0.030) sumaban
+    // fatiga visual en sesiones largas sin aportar lectura de juego.
+    u.uSat.value = 1.0 - this._damage * 0.22 + this._heat * 0.05;
+    u.uGrain.value = 0.016 + this._heat * 0.020;
   }
 
   // Un fogonazo inmediato (bajas de jefe, impactos críticos).

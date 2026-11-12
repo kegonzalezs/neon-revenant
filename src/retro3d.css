@@ -1,0 +1,664 @@
+/* ===========================================================================
+   NEON//REVENANT — CAPA "PIXEL FANTASY 3D" (edición 07.00)
+   ---------------------------------------------------------------------------
+   Rehace TODAS las pantallas como interfaz de juego de fantasia pixel-art:
+     · marcos 9-slice dibujados a pixel (madera tallada, pizarra violeta,
+       doble filete dorado y esquinas ornamentadas)
+     · tipografia pixel real (Silkscreen / Press Start 2P, con acentos)
+     · extrusion 3D con sombras DURAS de 3-6 px: cero blur, cero glow, cero
+       degradados suaves, cero cian
+     · suelo de damero en perspectiva y texturas repetidas a 8 px
+     · la ficha del heroe se reestructura como hoja de personaje de RPG
+
+   Solo presentacion. No toca logica de juego ni modelos 3D.
+   Se carga DESPUES de style.css, por eso prevalece en igualdad de
+   especificidad; las variables heredadas se redefinen aqui.
+   Los sprites los genera `scripts/gen-pixel-ui.py`.
+   =========================================================================== */
+
+@font-face{
+  font-family:'PixelUI';
+  src:url('../assets/fonts/silkscreen.ttf') format('truetype');
+  font-display:swap;
+}
+@font-face{
+  font-family:'PixelBold';
+  src:url('../assets/fonts/silkscreen-bold.ttf') format('truetype');
+  font-display:swap;
+}
+@font-face{
+  font-family:'PixelTitle';
+  src:url('../assets/fonts/press-start-2p.ttf') format('truetype');
+  font-display:swap;
+}
+
+:root{
+  /* Nombres heredados: ahora apuntan a la paleta de fantasia, no al neon. */
+  --ink:#1a1020; --ink2:#2b1c30; --ink3:#3a2540;
+  --paper:#f7edd7; --muted:#c0a98a;
+  --cyan:#ffcf4a; --cyan-dim:#8a6a2c;          /* antes cian, ahora ORO */
+  --coral:#e2683f; --amber:#f4a63c;
+  --violet:#a67bea; --acid:#9bcf5a; --ice:#8fd0e0;
+  --glass:rgba(58,37,64,.9); --glass2:rgba(71,46,76,.94);
+  --line:rgba(255,207,74,.28); --line2:rgba(255,207,74,.5);
+  --bevel:none; --panel:rgba(58,37,64,.9);
+
+  /* Paleta pixel */
+  --px-bg:#472e4c;
+  --px-wood:#8f573c;
+  --px-wood-dk:#663a31;
+  --px-slate:#5d5682;
+  --px-plum:#3a2540;
+  --px-ink:#1a1020;
+  --px-gold:#ffcf4a;
+  --px-gold-dk:#c9971f;
+  --px-cream:#f7edd7;
+  --px-green:#1e834b;
+  --px-red:#831c1d;
+  --px-shadow:0 4px 0 #1a1020,0 7px 0 #0d0812;
+  --px-shadow-lg:0 5px 0 #1a1020,0 9px 0 #0d0812,0 13px 0 #080510;
+
+  /* Marcos 9-slice: esquinas 1:1 (nitidas), cantos estirados. */
+  --fr-slate:url('../assets/ui/pixel/panel-slate.png') 14 / 14px / 0 stretch;
+  --fr-plum:url('../assets/ui/pixel/panel-plum.png') 14 / 14px / 0 stretch;
+  --fr-wood:url('../assets/ui/pixel/panel-wood.png') 14 / 14px / 0 stretch;
+  --fr-sheet:url('../assets/ui/pixel/panel-sheet.png') 18 / 18px / 0 stretch;
+  --fr-ornate:url('../assets/ui/pixel/panel-ornate.png') 20 / 20px / 0 stretch;
+  --fr-plate:url('../assets/ui/pixel/header-plate.png') 9 / 9px / 0 stretch;
+  --fr-icon:url('../assets/ui/pixel/frame-icon.png') 8 / 8px / 0 stretch;
+  --fr-hud:url('../assets/ui/pixel/frame-hud.png') 10 / 10px / 0 stretch;
+  --btn-wood:url('../assets/ui/pixel/btn-wood.png') 10 / 10px / 0 stretch;
+  --btn-green:url('../assets/ui/pixel/btn-green.png') 10 / 10px / 0 stretch;
+  --btn-gold:url('../assets/ui/pixel/btn-gold.png') 10 / 10px / 0 stretch;
+  --btn-red:url('../assets/ui/pixel/btn-red.png') 10 / 10px / 0 stretch;
+  --btn-blue:url('../assets/ui/pixel/btn-blue.png') 10 / 10px / 0 stretch;
+  --btn-slate:url('../assets/ui/pixel/btn-slate.png') 10 / 10px / 0 stretch;
+}
+
+/* ---------------------------------------------------------------------------
+   1. Tipografia pixel global + reset de suavizados heredados.
+   --------------------------------------------------------------------------- */
+body,body *{font-family:'PixelUI',Consolas,monospace!important}
+h1,h2,h3,h4,b,strong,button,.hub-brand,.brand-mini,.score-box b,.ammo b,
+.roster-text b,.armory-name,.sec-head b,.level-card h3,.op-hero-name,
+.primary,.secondary,.op-confirm,.hub-tabs button,.chip{
+  font-family:'PixelBold','PixelUI',monospace!important;
+}
+#menu h1,#menu h1 span,.boot-logo{
+  font-family:'PixelTitle','PixelUI',monospace!important;
+  letter-spacing:0!important;
+}
+body{
+  color:var(--px-cream);
+  text-shadow:1px 1px 0 #1a1020;
+  image-rendering:pixelated;
+}
+::selection{background:var(--px-gold);color:#1a1020}
+button:focus-visible{outline:3px solid var(--px-gold);outline-offset:2px}
+
+/* Barrido CRT muy tenue: no debe desdibujar el pixel art. */
+body::after{
+  content:'';position:fixed;inset:0;z-index:30;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 4px);
+  opacity:.08;
+}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:#241626;border:2px solid #1a1020}
+::-webkit-scrollbar-thumb{
+  background:#c9971f;border:2px solid #1a1020;
+  box-shadow:inset 0 2px 0 rgba(255,238,199,.3);
+}
+::-webkit-scrollbar-thumb:hover{background:var(--px-gold)}
+
+/* ---------------------------------------------------------------------------
+   2. Fondos: damero en perspectiva + textura de bloques.
+   --------------------------------------------------------------------------- */
+#menu::before,#hub,.screen.overlay,#skills,#boot{
+  background-color:var(--px-bg)!important;
+  background-image:url('../assets/ui/pixel/tile-bg.png')!important;
+  background-repeat:repeat!important;
+  background-size:16px 16px!important;
+}
+#menu::before{
+  background-image:
+    linear-gradient(180deg,rgba(58,37,64,.82) 0%,rgba(43,28,48,.75) 55%,rgba(102,58,49,.82) 100%),
+    url('../assets/ui/pixel/tile-bg.png')!important;
+  background-size:auto,16px 16px!important;
+  inset:-20% -10%!important;
+}
+#menu::after{display:none!important}   /* fuera la rejilla neón animada */
+#hub{background-image:
+  radial-gradient(ellipse at 78% 8%,rgba(255,207,74,.10),transparent 52%),
+  url('../assets/ui/pixel/tile-bg.png')!important;
+  background-size:auto,16px 16px!important}
+.screen.overlay{background-image:
+  linear-gradient(180deg,rgba(26,16,32,.82),rgba(13,8,18,.92)),
+  url('../assets/ui/pixel/tile-bg.png')!important;
+  background-size:auto,16px 16px!important;
+  backdrop-filter:none!important}
+
+.screen.active::after,#menu.active::after{
+  content:''!important;position:absolute;
+  top:auto;left:-35%;right:-35%;bottom:-40%;height:88%;
+  z-index:-1;pointer-events:none;display:block!important;
+  background:url('../assets/ui/pixel/floor.png') repeat 0 0/96px 96px!important;
+  background-color:transparent!important;
+  transform:perspective(420px) rotateX(62deg);
+  transform-origin:50% 100%;
+  mask-image:linear-gradient(180deg,transparent,#000 38%,transparent 92%);
+  opacity:.5;animation:none!important;
+  image-rendering:pixelated;
+}
+.screen.overlay.active::after{opacity:.2}
+
+/* ---------------------------------------------------------------------------
+   3. Textos: oro macizo con contorno duro, sin glow.
+   --------------------------------------------------------------------------- */
+#menu h1,#menu h1 span{
+  background:none!important;-webkit-background-clip:border-box!important;
+  background-clip:border-box!important;-webkit-text-fill-color:currentColor!important;
+  color:var(--px-cream)!important;filter:none!important;
+}
+#menu h1{
+  font-size:clamp(30px,4.6vw,62px)!important;line-height:1.28!important;
+  text-shadow:3px 3px 0 #8a5a2b,6px 6px 0 #533323,9px 9px 0 #1a1020!important;
+}
+#menu h1 span{color:var(--px-gold)!important;text-shadow:3px 3px 0 #8a3320,6px 6px 0 #4d1a12,9px 9px 0 #1a1020!important}
+.pane-head h2,.modal h2,.upgrade-panel h2,.codex-head h2,.loot-modal h2,
+.select-head h2,.skills-head h2,.boot-logo,#wave-banner b{
+  color:var(--px-gold)!important;
+  text-shadow:2px 2px 0 #6b3a18,4px 4px 0 #3d2730,6px 6px 0 #150d19!important;
+  filter:none!important;
+}
+.pane-head h2{font-size:clamp(22px,2.7vw,36px)!important;line-height:1.2!important}
+.eyebrow,.op-section-title,.op-sheet-plate{
+  color:var(--px-gold)!important;font-family:'PixelBold','PixelUI',monospace!important;
+  font-size:11px!important;letter-spacing:1.5px!important;text-shadow:2px 2px 0 #1a1020!important;
+}
+.eyebrow i,.eyebrow::before{background:var(--px-gold)!important;box-shadow:2px 2px 0 #1a1020!important}
+.manifesto,.hub-body,.pane-note,.op-hero-desc{color:var(--px-cream)!important;text-shadow:1px 1px 0 #1a1020!important}
+.hub-brand,.brand-mini,.hub-wallet b,.score-box b,.ammo b,.meta-strip b,
+.codex-topbar,.codex-count,.codex-sec-head span,.branch-title,.doss-card h3,
+.set-row b,.slot-chips b,.slot-line b,.credit-line span b,.loot-how small,
+.node-tip b,#lb-list .doss-row b,label.set-row b,.diff-item small,
+#utility-name small,.slot-rules li b,.codex-head-right span,.bs-slot b,
+.codex-copy small,.node-pips,.hub-nav button.active::after{
+  color:var(--px-gold)!important;background-color:transparent!important;
+  text-shadow:2px 2px 0 #1a1020!important;
+}
+#announcement{
+  background:none!important;-webkit-background-clip:border-box!important;
+  background-clip:border-box!important;color:var(--px-gold)!important;
+  filter:none!important;text-shadow:3px 3px 0 #1a1020!important;
+}
+.brand-mini>span,.hub-brand span{
+  background:none!important;-webkit-background-clip:border-box!important;
+  background-clip:border-box!important;color:var(--px-coral, #e2683f)!important;
+  -webkit-text-fill-color:currentColor!important;
+}
+
+/* ---------------------------------------------------------------------------
+   4. Marcos 9-slice para paneles grandes.
+   --------------------------------------------------------------------------- */
+.modal,.loot-modal,.codex-modal,.buildsum-modal,.controls-card,.tree-host,
+.doss-card,.build-panel,.upgrade-main,.upgrade-side>div,.slot-panel,
+.slot-machine,.loot-how,.loot-synergy,.next-wave-box,.node-tip,
+.codex-topbar,.tree-foot,.codex-modal,.buildsum-modal{
+  border:14px solid transparent!important;
+  border-image:var(--fr-slate)!important;
+  border-radius:0!important;clip-path:none!important;
+  background:url('../assets/ui/pixel/tile-slate.png') repeat!important;
+  background-size:8px 8px!important;
+  box-shadow:var(--px-shadow-lg)!important;
+  color:var(--px-cream)!important;
+  image-rendering:pixelated;
+  filter:none!important;
+}
+.codex-modal,.buildsum-modal,.tree-host,.build-panel{border-image:var(--fr-ornate)!important;border-width:20px!important}
+.controls-card{border-image:var(--fr-wood)!important}
+.loot-how,.loot-synergy,.next-wave-box,.tree-foot,.codex-topbar{
+  border-width:9px!important;border-image:var(--fr-plate)!important;
+  background:url('../assets/ui/pixel/tile-plum.png') repeat!important;background-size:8px 8px!important;
+  padding:8px 12px!important;
+}
+.node-tip{border-width:9px!important;border-image:var(--fr-plate)!important}
+
+/* Paneles compactos: borde pixel a base de sombras duras, sin 9-slice. */
+.hub-top,.hub-footer,.hub-summary,.meta-strip>div,#round-tier,
+.codex-card,.bs-slot,.op-hero-meta span,.op-hero-passive,.roster-item,
+.armory-chip,.skill-char-chips .chip,.hub-tabs button,.diff-item,.diff-btn,
+.small-btn,.hud-btn,.sec-card,.level-card,.armory-card,.character-card,
+.upgrade-choice,.text-btn,.loot-icon,.upgrade-icon,.codex-glyph,
+.slot-reels span,.op-hero-stats span,.tree-node,.bs-slot{
+  border-radius:0!important;clip-path:none!important;
+  filter:none!important;image-rendering:pixelated;
+}
+.hub-top,.hub-footer,.hub-summary,.meta-strip>div,#round-tier{
+  border:3px solid var(--px-ink)!important;
+  background:#3a2540!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold-dk),0 4px 0 #1a1020!important;
+  color:var(--px-cream)!important;
+}
+.meta-strip>div{padding:8px 12px!important;min-width:104px}
+
+/* ---------------------------------------------------------------------------
+   5. Tarjetas con marco ornamental dorado (tienda / reinos / arsenal).
+   --------------------------------------------------------------------------- */
+.sec-card,.level-card,.armory-card,.character-card,.upgrade-choice{
+  border:20px solid transparent!important;
+  border-image:var(--fr-ornate)!important;
+  background:url('../assets/ui/pixel/tile-plum.png') repeat!important;
+  background-size:8px 8px!important;
+  box-shadow:var(--px-shadow)!important;
+  color:var(--px-cream)!important;
+  text-shadow:1px 1px 0 #1a1020!important;
+  transition:transform .1s steps(2),filter .15s!important;
+}
+.sec-card.selected,.level-card.selected,.character-card.selected,
+.armory-card.open,.upgrade-choice:hover{
+  border-image:var(--fr-sheet)!important;
+  filter:brightness(1.25)!important;
+}
+.codex-card,.bs-slot{
+  border:3px solid var(--px-ink)!important;
+  background:#3a2540!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold-dk),0 4px 0 #1a1020!important;
+  color:var(--px-cream)!important;
+}
+.loot-icon,.upgrade-icon,.codex-glyph{
+  border:4px solid var(--px-ink)!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold),0 5px 0 #1a1020!important;
+  color:var(--px-gold)!important;
+  text-shadow:2px 2px 0 #1a1020!important;
+}
+.loot-icon{background:var(--rarity,var(--px-gold))!important;color:#1a1020!important;text-shadow:none!important}
+.upgrade-icon{color:var(--rarity,var(--px-gold))!important}
+.codex-glyph{color:var(--cc,var(--px-gold))!important}
+.sec-art{filter:none!important;image-rendering:pixelated}
+
+/* ---------------------------------------------------------------------------
+   6. Botones: teclas de arcade con canto duro.
+   --------------------------------------------------------------------------- */
+.primary,.secondary,.op-confirm,.small-btn,.hud-btn,.hub-tabs button,
+.armory-chip,.skill-char-chips .chip,.diff-btn,.diff-item,
+#slot-spin,#reroll-btn,#codex-close,#buildsum-close,#tree-fit-btn,
+#respec-btn,.upgrade-grid button,.tree-node,.text-btn,.roster-item{
+  border:10px solid transparent!important;
+  border-image:var(--btn-slate)!important;
+  background:url('../assets/ui/pixel/tile-slate.png') repeat!important;
+  background-size:8px 8px!important;
+  color:var(--px-cream)!important;
+  font-family:'PixelBold','PixelUI',monospace!important;
+  font-size:11px!important;letter-spacing:.5px!important;
+  text-shadow:2px 2px 0 #1a1020!important;
+  box-shadow:var(--px-shadow)!important;
+  transition:transform .08s steps(2),filter .15s!important;
+}
+.primary,.op-confirm{border-image:var(--btn-gold)!important;color:#2b1805!important;text-shadow:1px 1px 0 rgba(255,255,255,.35)!important}
+#menu .primary{border-image:var(--btn-wood)!important;color:var(--px-cream)!important;text-shadow:2px 2px 0 #1a1020!important}
+.primary b,.primary small{color:inherit!important}
+.secondary:hover,.hud-btn:hover,.small-btn:hover,.armory-chip:hover,
+.skill-char-chips .chip:hover,.diff-btn:hover{
+  filter:brightness(1.3)!important;color:var(--px-gold)!important;
+}
+.hub-tabs button.active,.armory-chip.active,.skill-char-chips .chip.active,
+.diff-btn.active,.diff-item.active{
+  border-image:var(--btn-green)!important;color:#fff6cf!important;
+  filter:none!important;
+}
+#slot-spin,#reroll-btn{border-image:var(--btn-gold)!important;color:#2b1805!important}
+#slot-spin b,#slot-spin small{color:#2b1805!important}
+#slot-spin:disabled{filter:grayscale(.8)!important;opacity:.6}
+#codex-close,#buildsum-close{border-image:var(--btn-red)!important;color:#fff0e0!important}
+.text-btn{border:0!important;border-bottom:3px solid var(--px-gold-dk)!important;background:none!important;box-shadow:none!important}
+.text-btn:hover{border-bottom-color:var(--px-gold)!important;transform:none!important;filter:none!important}
+
+:is(.sec-card,.level-card,.armory-card,.character-card,.upgrade-choice,
+    .roster-item,.hub-tabs button,.armory-chip,.skill-char-chips .chip):hover{
+  transform:translateY(-3px)!important;
+  filter:brightness(1.18)!important;
+}
+button:not(.gnode):active,.sec-card:active,.armory-card:active,.roster-item:active{
+  transform:translateY(4px)!important;
+  box-shadow:0 1px 0 #0d0812!important;
+  filter:brightness(.88)!important;
+}
+
+/* Boton principal del menu: madera tallada con letra crema. */
+#menu .primary{
+  font-size:14px!important;padding:14px 24px!important;
+  background:url('../assets/ui/pixel/tile-wood.png') repeat!important;
+  background-size:8px 8px!important;
+}
+
+/* Botones secundarios: tambien madera tallada, no barras finas translucidas. */
+#menu .secondary{
+  height:56px!important;padding:0 20px!important;
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  border-image:var(--btn-wood)!important;
+  background:url('../assets/ui/pixel/tile-wood.png') repeat!important;
+  background-size:8px 8px!important;
+  color:var(--px-cream)!important;font-size:12px!important;letter-spacing:1px!important;
+  text-shadow:2px 2px 0 #1a1020!important;
+}
+#menu .secondary b{font-size:16px!important;color:inherit!important}
+
+/* Manual de combate: compacto para que quepa entero y sin desenfoque (pixel puro). */
+.controls-card{
+  padding:10px 14px!important;
+  backdrop-filter:none!important;
+  overflow:hidden!important;
+}
+.controls-card>div:not(:first-child){
+  margin:3px 0!important;font-size:10px!important;line-height:1.2!important;
+}
+.controls-card .card-index{padding-bottom:6px!important;margin-bottom:4px!important;font-size:9px!important}
+.controls-card kbd{padding:2px 5px!important;font-size:9px!important}
+
+/* ---------------------------------------------------------------------------
+   7. Ficha del heroe (reestructurada en index.html).
+   --------------------------------------------------------------------------- */
+.op-hero{
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+  grid-template-columns:1fr!important;
+  border:18px solid transparent!important;
+  border-image:var(--fr-sheet)!important;
+  background:url('../assets/ui/pixel/tile-wood.png') repeat!important;
+  background-size:8px 8px!important;
+  box-shadow:var(--px-shadow-lg)!important;
+  overflow:hidden!important;
+  color:var(--px-cream)!important;
+  image-rendering:pixelated;
+}
+.op-hero-glow{display:none!important}
+.op-sheet-plate{
+  display:flex!important;align-items:center;justify-content:space-between;
+  border:9px solid transparent!important;border-image:var(--fr-plate)!important;
+  background:url('../assets/ui/pixel/tile-plum.png') repeat!important;
+  background-size:8px 8px!important;
+  padding:6px 12px!important;margin:2px 2px 0!important;
+  color:var(--px-gold)!important;
+  font-size:12px!important;letter-spacing:2px!important;
+  box-shadow:0 3px 0 #1a1020!important;
+}
+.op-sheet-plate i{font-style:normal;color:var(--px-coral,#e2683f)!important}
+.op-sheet{
+  display:grid!important;grid-template-columns:minmax(180px,34%) 1fr!important;
+  gap:14px!important;padding:12px 14px 6px!important;min-height:0!important;
+}
+.op-sheet-left{display:flex!important;flex-direction:column!important;gap:8px!important;min-height:0!important}
+.op-sheet-right{display:flex!important;flex-direction:column!important;gap:8px!important;min-height:0!important;overflow-y:auto;justify-content:space-between!important}
+.op-sheet-section{min-height:0}
+.op-section-title{
+  display:block!important;border-bottom:3px solid var(--px-gold-dk)!important;
+  padding-bottom:3px!important;margin-bottom:6px!important;color:var(--px-gold)!important;
+}
+
+/* Retrato: hueco de equipo con doble filete dorado. */
+.op-hero-portrait{
+  position:relative!important;display:flex!important;align-items:center!important;
+  justify-content:center!important;flex:1 1 auto!important;min-height:130px!important;
+  padding:8px!important;border:20px solid transparent!important;
+  border-image:var(--fr-ornate)!important;
+  background:#241626!important;
+  box-shadow:inset 0 0 0 3px #1a1020,0 4px 0 #1a1020!important;
+}
+.op-hero-portrait::before{display:none!important}
+.op-hero-portrait img.roster-hero-icon{
+  position:relative!important;z-index:1!important;display:block!important;
+  width:min(100%,230px)!important;height:auto!important;aspect-ratio:1!important;
+  object-fit:contain!important;image-rendering:pixelated!important;
+  border:4px solid var(--px-ink)!important;
+  box-shadow:0 0 0 3px var(--px-gold-dk),0 5px 0 #1a1020!important;
+  filter:none!important;animation:none!important;
+}
+.op-hero-portrait svg{filter:none!important;animation:none!important}
+.op-nameplate{
+  border:3px solid var(--px-ink)!important;
+  background:#3a2540!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold-dk),0 4px 0 #1a1020!important;
+  padding:5px 9px!important;text-align:center!important;
+}
+.op-hero-name{
+  margin:0!important;font-size:clamp(17px,1.9vw,26px)!important;line-height:1.15!important;
+  color:var(--px-gold)!important;filter:none!important;
+  text-shadow:2px 2px 0 #1a1020,4px 4px 0 #3d2730!important;
+}
+.op-hero-role{font-size:10px!important;letter-spacing:1px!important;color:var(--px-cream)!important}
+.op-hero-desc{
+  font-size:11px!important;line-height:1.45!important;margin:0!important;
+  color:#e4d3ae!important;max-width:none!important;
+}
+
+/* Atributos: filas con regla dorada y barra segmentada. */
+.op-hero-stats{display:grid!important;grid-template-columns:1fr 1fr!important;gap:5px 12px!important;margin:0!important}
+.op-hero-stats span{
+  display:block!important;font-size:10px!important;letter-spacing:.5px!important;
+  color:var(--px-cream)!important;border:0!important;background:none!important;
+  box-shadow:none!important;
+}
+.op-hero-stats i{
+  display:block!important;height:10px!important;margin-top:3px!important;
+  border:2px solid var(--px-ink)!important;border-radius:0!important;
+  background:#241626!important;overflow:hidden!important;position:relative!important;
+  box-shadow:0 2px 0 #1a1020!important;
+}
+.op-hero-stats i::after{
+  content:''!important;position:absolute!important;inset:0!important;
+  width:var(--v)!important;height:100%!important;
+  background:repeating-linear-gradient(90deg,#ffcf4a 0 7px,#c9971f 7px 8px,transparent 8px 10px),#c9971f!important;
+  box-shadow:none!important;border-radius:0!important;
+}
+
+/* Don del heroe. */
+.op-hero-passive{
+  display:block!important;border:3px solid var(--px-ink)!important;
+  background:#3a2540!important;padding:6px 9px!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold-dk),0 4px 0 #1a1020!important;
+  font-size:11px!important;line-height:1.4!important;color:var(--px-cream)!important;
+}
+.op-hero-passive span{
+  display:block!important;color:var(--px-gold)!important;font-size:9px!important;
+  letter-spacing:1.5px!important;margin-bottom:2px!important;
+}
+/* Nombre y efecto del don, tal como aparecen en la hoja de personajes. */
+.op-hero-passive b{
+  display:block!important;color:var(--px-gold)!important;
+  font-family:'PixelBold','PixelUI',monospace!important;
+  font-size:12px!important;letter-spacing:.5px!important;line-height:1.3!important;
+  text-shadow:2px 2px 0 #1a1020!important;margin-bottom:2px!important;
+}
+.op-hero-passive small{
+  display:block!important;color:#e4d3ae!important;
+  font-size:10px!important;line-height:1.35!important;
+}
+
+/* Equipo: huecos 2x2 con marco dorado. */
+.op-hero-meta{display:grid!important;grid-template-columns:1fr 1fr!important;gap:6px!important;flex-wrap:unset!important;margin:0!important}
+.op-hero-meta span{
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  min-height:28px!important;padding:4px 6px!important;text-align:center!important;
+  font-size:9px!important;line-height:1.25!important;letter-spacing:0!important;
+  color:var(--px-cream)!important;border:3px solid var(--px-gold-dk)!important;
+  background:#241626!important;
+  box-shadow:inset 0 0 0 2px #1a1020,0 3px 0 #1a1020!important;
+}
+
+.op-hero-foot{
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  gap:12px!important;padding:6px 14px 10px!important;margin:0!important;
+}
+.op-hero-record{font-size:10px!important;letter-spacing:1px!important;color:var(--px-cream)!important}
+.op-hero-record b{color:var(--px-gold)!important;font-size:13px!important}
+.op-confirm{font-size:12px!important;padding:10px 18px!important;min-width:190px}
+
+/* ---------------------------------------------------------------------------
+   8. Lista de heroes e iconos pixel.
+   --------------------------------------------------------------------------- */
+.op-roster{border-right:3px solid var(--px-gold-dk)!important;gap:6px!important;padding-right:8px!important}
+.roster-item{
+  display:grid!important;grid-template-columns:18px 40px 1fr!important;
+  gap:8px!important;padding:5px 9px!important;
+  border:10px solid transparent!important;
+  border-image:var(--btn-slate)!important;
+  box-shadow:0 3px 0 #1a1020,0 6px 0 #0d0812!important;
+  background:url('../assets/ui/pixel/tile-slate.png') repeat!important;background-size:8px 8px!important;
+}
+.roster-item.selected{border-image:var(--btn-gold)!important;filter:none!important}
+.roster-item:hover{transform:translateX(3px)!important;filter:brightness(1.2)!important}
+.roster-idx,.roster-text b,.roster-text small{color:var(--px-cream)!important}
+.roster-item.selected .roster-text b{color:#2b1805!important}
+.roster-icon{
+  display:block!important;width:40px!important;height:40px!important;
+  object-fit:cover!important;image-rendering:pixelated!important;
+  border:3px solid var(--px-ink)!important;
+  box-shadow:0 0 0 2px var(--px-gold-dk),0 3px 0 #1a1020!important;
+  filter:none!important;transition:none!important;
+}
+.roster-item:hover .roster-icon,.roster-item.selected .roster-icon{transform:none!important;border-color:var(--px-ink)!important;box-shadow:0 0 0 2px var(--px-gold),0 3px 0 #1a1020!important}
+.roster-text b{font-size:11px!important;letter-spacing:0!important}
+.roster-text small{font-size:9px!important;letter-spacing:0!important}
+
+/* ---------------------------------------------------------------------------
+   9. Arbol de habilidades, HUD y detalles.
+   --------------------------------------------------------------------------- */
+.gnode{
+  filter:none!important;
+  border:3px solid var(--px-gold-dk)!important;
+  background:#3a2540!important;
+  box-shadow:0 4px 0 #1a1020!important;
+}
+.gnode.ready,.gnode.owned,.gnode.maxed,.gnode.matched{
+  filter:none!important;border-color:var(--px-gold)!important;
+  box-shadow:0 4px 0 #1a1020,0 0 0 2px #8a5a2b!important;
+}
+.node-pips i.on{background:var(--px-gold)!important;box-shadow:none!important}
+.tree-node.ready{border-color:var(--px-gold)!important}
+.tree-node{border-width:8px!important;border-image:var(--btn-slate)!important}
+.slot-reels span{
+  border:4px solid var(--px-ink)!important;background:#241626!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold-dk),0 4px 0 #1a1020!important;
+  color:var(--px-gold)!important;text-shadow:2px 2px 0 #1a1020!important;
+}
+kbd{
+  border:3px solid var(--px-ink)!important;border-bottom-width:5px!important;
+  background:#8f573c!important;color:var(--px-cream)!important;
+  box-shadow:0 3px 0 #1a1020!important;border-radius:0!important;
+  font-family:'PixelBold','PixelUI',monospace!important;font-size:10px!important;
+}
+input[type=search],.armory-search,.tree-toolbar input[type=search]{
+  background:#241626!important;border:3px solid var(--px-gold-dk)!important;
+  box-shadow:inset 0 3px 0 #1a1020,0 3px 0 #1a1020!important;
+  color:var(--px-cream)!important;
+}
+input[type=search]:focus,.armory-search:focus,.tree-toolbar input[type=search]:focus{
+  border-color:var(--px-gold)!important;box-shadow:inset 0 3px 0 #1a1020,0 0 0 2px #8a5a2b!important;
+}
+input[type=checkbox],input[type=range]{accent-color:var(--px-gold)!important}
+.menu-rail{border-right:3px solid var(--px-gold-dk)!important;background:#241626!important}
+.pane-head{border-bottom:4px solid var(--px-gold-dk)!important;box-shadow:0 3px 0 #1a1020!important}
+.hub-footer{border-top:4px solid var(--px-gold-dk)!important;box-shadow:0 -3px 0 #1a1020!important}
+.controls-card>div:not(:first-child){border-bottom:2px solid rgba(255,207,74,.18)!important}
+
+/* HUD: bloques de piedra con filete dorado y barras segmentadas. */
+#hud .wave-box,#hud .score-box,#hud .chips-box,#hud .vitals,#hud .weapon{
+  border:10px solid transparent!important;border-image:var(--fr-hud)!important;
+  background:url('../assets/ui/pixel/tile-plum.png') repeat!important;background-size:8px 8px!important;
+  box-shadow:0 4px 0 #1a1020,0 7px 0 #0d0812!important;
+  color:var(--px-cream)!important;padding:8px 12px!important;
+}
+.health-track,.dash-line>div,#frenzy-wrap div,#shield-line div,#boss-wrap>div{
+  border:3px solid var(--px-ink)!important;background:#241626!important;border-radius:0!important;
+  box-shadow:0 3px 0 #1a1020!important;
+}
+.health-track i,.dash-line i,#frenzy-bar,#shield-bar,#boss-health{
+  box-shadow:none!important;border-radius:0!important;
+  background:repeating-linear-gradient(90deg,#ffcf4a 0 8px,#c9971f 8px 9px,transparent 9px 11px),#c9971f!important;
+}
+#shield-line i{background:repeating-linear-gradient(90deg,#a67bea 0 8px,#6d4a9a 8px 9px,transparent 9px 11px),#6d4a9a!important}
+#boss-health{background:repeating-linear-gradient(90deg,#e2683f 0 8px,#8a3320 8px 9px,transparent 9px 11px),#8a3320!important}
+#enemy-count,#round-tier,.mod-chip,#obj-line,#loadout span{
+  border:3px solid var(--px-ink)!important;border-radius:0!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold-dk),0 3px 0 #1a1020!important;
+  color:var(--px-cream)!important;
+}
+#enemy-count{background:var(--px-red)!important;color:var(--px-cream)!important}
+.minimap{border:4px solid var(--px-gold-dk)!important;box-shadow:0 5px 0 #1a1020!important;image-rendering:pixelated}
+#perf-hud{border:3px solid var(--px-gold-dk)!important;background:#241626!important;color:var(--px-gold)!important}
+
+/* Arranque. */
+#boot{background-image:url('../assets/ui/pixel/tile-bg.png')!important;background-size:16px 16px!important}
+.boot-track{height:12px!important;border:3px solid var(--px-ink)!important;background:#241626!important;box-shadow:0 3px 0 #1a1020!important;border-radius:0!important}
+.boot-track i{background:repeating-linear-gradient(90deg,#ffcf4a 0 8px,#c9971f 8px 9px,transparent 9px 11px),#c9971f!important;box-shadow:none!important}
+.boot-logo{color:var(--px-gold)!important}
+
+/* Restos literales de cian del CSS heredado. */
+#skills{background-image:url('../assets/ui/pixel/tile-bg.png')!important;background-size:16px 16px!important}
+.tree-node.ready{box-shadow:0 3px 0 #1a1020!important}
+.hub-nav button.active::after{background:var(--px-gold)!important;box-shadow:none!important}
+.codex-topbar,.node-tip b{color:var(--px-gold)!important}
+
+/* ---------------------------------------------------------------------------
+   10. Controles compactos: borde de 3 px en lugar de marco 9-slice, para que
+       pestañas, chips y filas del roster no pierdan su area de texto.
+       Escala tipografica: la fuente pixel necesita menos cuerpo que la Arial
+       Narrow heredada, o los titulos de 78 px desbordan las tarjetas.
+   --------------------------------------------------------------------------- */
+.hub-tabs button,.armory-chip,.skill-char-chips .chip,.small-btn,.hud-btn,
+.diff-btn,.tree-node,.roster-item,.text-btn{
+  border:3px solid var(--px-ink)!important;border-image:none!important;
+  background:#3a2540!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold-dk),0 3px 0 #1a1020!important;
+  border-radius:0!important;
+}
+.hub-tabs button.active,.armory-chip.active,.skill-char-chips .chip.active,
+.diff-btn.active,.diff-item.active,.tree-node.owned,.tree-node.maxed{
+  background:#1e834b!important;
+  box-shadow:inset 0 0 0 2px #b6e26e,0 3px 0 #1a1020!important;
+  color:#fff6cf!important;
+}
+.roster-item.selected{
+  background:#8f573c!important;
+  box-shadow:inset 0 0 0 2px var(--px-gold),0 3px 0 #1a1020!important;
+  border-color:var(--px-ink)!important;
+}
+.roster-item.selected .roster-text b,.roster-item.selected .roster-idx{color:#fff3cf!important}
+.diff-item.active{border-left-color:var(--px-gold)!important}
+
+.modal h2,.upgrade-panel h2,.loot-modal h2,.codex-head h2,.select-head h2,
+.skills-head h2,.boot-logo{
+  font-size:clamp(17px,2.1vw,28px)!important;line-height:1.25!important;
+  letter-spacing:0!important;margin:8px 0 12px!important;
+}
+.upgrade-grid b,.upgrade-grid i,.stats b,.ammo b,.wave-box b,.score-box b,
+.hub-wallet b,.meta-strip b,.op-hero-record b{
+  letter-spacing:0!important;
+}
+.upgrade-grid b{font-size:17px!important;line-height:1.2!important}
+.upgrade-grid button{height:auto!important;min-height:150px!important;padding:16px!important}
+.ammo b{font-size:34px!important}
+.ammo span{font-size:12px!important}
+.boot-logo{font-size:20px!important}
+#wave-banner b{font-size:34px!important}
+.manifesto,.modal p,.upgrade-panel p,.pane-note,.hub-summary,.doss-row,
+.codex-copy,.loot-how,.slot-rules,.stats small{
+  font-size:11px!important;line-height:1.5!important;letter-spacing:0!important;
+}
+small,.menu-meta,.menu-bottom,.roster-text small,.hub-top small,
+.card-index,.section-label,.slot-line,.set-row,.bs-slot,.codex-tags i,
+.sec-tags span,.level-tags span,.op-hero-meta span{
+  letter-spacing:0!important;
+}
+
+@media(max-width:1280px){
+  .op-sheet{grid-template-columns:minmax(150px,32%) 1fr!important;gap:10px!important;padding:8px 10px 4px!important}
+  .op-hero-name{font-size:18px!important}
+  .op-hero-stats{gap:4px 8px!important}
+  .roster-item{grid-template-columns:16px 36px 1fr!important;padding:4px 7px!important}
+  .roster-icon{width:36px!important;height:36px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .screen.active::after,#menu.active::after{animation:none!important}
+  :is(.sec-card,.level-card,.armory-card,.roster-item):hover{transform:none!important}
+}

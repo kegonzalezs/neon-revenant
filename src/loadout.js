@@ -1,4 +1,4 @@
-// NEON//REVENANT — arsenal de apoyo: modelos de cuerpo a cuerpo, utilidad y
+// NEON//REVENANT - utilidad y companero: modelos de apoyo (sin armas).
 // el gato robot. Solo construyen mallas; la lógica de combate vive en game.js.
 
 import * as THREE from 'three';
@@ -21,41 +21,10 @@ function rbox(parent, size, pos, material, radius = .04) {
 }
 
 // ---------------------------------------------------------------------------
-// Modelos de armas cuerpo a cuerpo: se enganchan a la mano del jugador.
-// userData.blade apunta a la pieza que brilla al golpear.
-export function buildMeleeModel(id, accentHex = 0x6ef7e7) {
-  const g = new THREE.Group();
-  const dark = darkMat(), grip = new THREE.MeshStandardMaterial({ color: 0x0b0f12, roughness: .85 });
-  const glow = glowMat(accentHex, 1.35);
-  if (id === 'hammer') {
-    rbox(g, [.07, .34, .07], [0, -.12, 0], grip);
-    rbox(g, [.3, .2, .2], [0, .12, 0], dark, .05);
-    rbox(g, [.34, .07, .24], [0, .12, 0], glow, .02);
-    g.userData.blade = g.children[2];
-  } else if (id === 'lance') {
-    rbox(g, [.06, .5, .06], [0, -.2, 0], grip);
-    const shaft = rbox(g, [.05, 1.0, .05], [0, .32, 0], dark, .02);
-    rbox(g, [.09, .16, .09], [0, .82, 0], glow, .02);
-    const tip = rbox(g, [.04, .3, .04], [0, 1.02, 0], glow, .015);
-    tip.rotation.z = 0;
-    g.userData.blade = tip; g.userData.shaft = shaft;
-  } else if (id === 'claws') {
-    rbox(g, [.1, .18, .1], [0, -.1, 0], grip);
-    for (const [x, z] of [[-.06, -.08], [.06, -.08], [-.05, .02], [.05, .02]]) {
-      const claw = rbox(g, [.02, .22, .02], [x, .1, z], glow, .01);
-      claw.rotation.x = -.5;
-    }
-    rbox(g, [.16, .06, .16], [0, 0, 0], dark, .02);
-    g.userData.blade = g.children[1];
-  } else { // blade — hoja de fase
-    rbox(g, [.06, .3, .06], [0, -.12, 0], grip);
-    rbox(g, [.03, .3, .03], [0, .1, 0], dark, .015);
-    const blade = rbox(g, [.035, .85, .1], [0, .62, 0], glow, .015);
-    blade.rotation.x = 0;
-    g.userData.blade = blade;
-  }
-  return g;
-}
+// Los modelos procedurales de cuerpo a cuerpo (hoja / martillo / lanza /
+// garras) se ELIMINARON. Cada heroe pelea con su arma unica GLB; la ranura E
+// dispara el ataque de esa misma arma (ver src/weapons.js).
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // El gato robot: orejas de antena, cola segméntica, ojos LED. Camina con las

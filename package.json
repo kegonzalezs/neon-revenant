@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node scripts/start.cjs",
     "dev": "node scripts/start.cjs --enable-logging",
-    "check": "node --check main.cjs && node --check src/game.js && node --check src/content.js && node --check src/meta.js && node --check src/bosses.js && node --check src/props.js && node --check src/codex.js && node --check src/loadout.js && node --check src/facades.js && node --check scripts/start.cjs",
+    "check": "node --check main.cjs && node --check preload.cjs && node --check src/game.js && node --check src/glb-character.js && node --check src/nature-kit.js && node --check src/nature-world.js && node --check src/worlds.js && node --check src/WorldManager.js && node --check src/worlds/registry.js && node --check src/worlds/world1-nature.js && node --check src/worlds/world2-snow.js && node --check src/worlds/world3-shop.js && node --check src/worlds/world4-suburban.js && node --check src/worlds/world5-station.js && node --check src/worlds/world6-space.js && node --check src/worlds/world7-hexagon.js && node --check src/operators.js && node --check src/content.js && node --check src/arsenal.js && node --check src/weapons.js && node --check src/combat-particles.js && node --check src/combat-projectiles.js && node --check src/sfx.js && node --check src/meta.js && node --check src/bosses.js && node --check src/props.js && node --check src/codex.js && node --check src/loadout.js && node --check src/facades.js && node --check scripts/start.cjs",
     "dist": "electron-builder",
     "dist-dir": "electron-builder --dir"
   },
@@ -18,8 +18,10 @@
     "directories": { "output": "dist" },
     "files": [
       "main.cjs",
+      "preload.cjs",
       "index.html",
       "src/**/*",
+      "assets/**/*",
       "node_modules/three/**",
       "package.json"
     ],

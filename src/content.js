@@ -1,139 +1,62 @@
 // NEON//REVENANT — contenido del juego (datos puros, sin dependencias)
 
 export const CHARACTERS = {
+  // ---------------------------------------------------------------------
+  // ROSTER DEFINITIVO (hoja "Personajes 1.png"): cinco héroes con modelo GLB
+  // propio. Se conservan los ids y los números de balance originales para no
+  // romper récords, árboles de habilidades ni partidas guardadas.
   vanta: {
-    name: 'VANTA', role: 'ESPECTRO TÁCTICO', color: 0x6ef7e7, hex: '#6ef7e7',
+    name: 'EL ROBOT', role: 'ARTIFICIO DESTRUCTIVO', color: 0x6ef7e7, hex: '#6ef7e7',
     hp: 120, damage: 36, speed: 8.4, fireRate: .12, maxAmmo: 26, damageTaken: 1,
     headshotMult: 1.85, chargeMult: 1.3, dashRecovery: 1.55, overdriveDuration: 7,
-    scale: 1, weapon: 'smg', emblem: '✦',
-    description: 'Unidad versátil. Controla el ritmo y castiga cada error.',
-    passive: 'SINERGIA // +30% carga de sobrecarga'
+    scale: 1, weapon: 'fusil', emblem: '✦',
+    description: 'Tecnología al servicio de la destrucción.',
+    passive: 'RAYO LÁSER // Dispara un rayo de gran alcance.'
   },
   kira: {
-    name: 'KIRA', role: 'HOSTIGADORA', color: 0xffbf47, hex: '#ffbf47',
+    name: 'EL VAMPIRO', role: 'DRENAJE VITAL', color: 0xe8434f, hex: '#e8434f',
     hp: 85, damage: 32, speed: 10.6, fireRate: .09, maxAmmo: 22, damageTaken: 1.05,
     headshotMult: 2.45, chargeMult: 1, dashRecovery: 1.05, overdriveDuration: 6,
-    scale: .92, weapon: 'needle', emblem: '⟐',
-    description: 'Rápida y quirúrgica. Apunta a la cabeza y nunca dejes de moverte.',
-    passive: 'PUNTO CIEGO // +60% daño en headshots'
+    scale: .92, weapon: 'daga', emblem: '⟐',
+    description: 'Roba vida y sigue luchando.',
+    passive: 'ROBO DE VIDA // Recupera salud al derrotar enemigos.'
   },
-  rook: {
-    name: 'ROOK', role: 'FORTALEZA DE ASALTO', color: 0xff4d38, hex: '#ff4d38',
-    hp: 185, damage: 44, speed: 6.8, fireRate: .16, maxAmmo: 34, damageTaken: .75,
-    headshotMult: 1.7, chargeMult: .85, dashRecovery: 1.9, overdriveDuration: 8,
-    scale: 1.13, weapon: 'cannon', emblem: '⬢',
-    description: 'Avanza sin retroceder. Blindaje pesado y munición para resistir.',
-    passive: 'BLINDAJE // -25% daño recibido'
-  },
-  // ---------------------------------------------------------------------
-  // Segunda hornada: siete operadores con regla propia, no una variación de
-  // color. Cada uno cambia CÓMO se juega la incursión.
-  nyx: {
-    name: 'NYX', role: 'SABOTEADORA', color: 0x9ff7ff, hex: '#9ff7ff',
-    hp: 95, damage: 30, speed: 10.2, fireRate: .085, maxAmmo: 20, damageTaken: 1,
-    headshotMult: 2.6, chargeMult: 1.15, dashRecovery: .95, overdriveDuration: 6.5,
-    scale: .94, weapon: 'arcer', emblem: '⌖',
-    description: 'Apaga señales en cadena. Su daño salta de cuerpo en cuerpo.',
-    passive: 'SALTO // sus disparos encadenan a +2 hostiles extra',
-    perk: { chain: 2 }
-  },
-  pyre: {
-    name: 'PYRE', role: 'INCENDIARIA', color: 0xff6a3d, hex: '#ff6a3d',
-    hp: 140, damage: 26, speed: 8.0, fireRate: .045, maxAmmo: 60, damageTaken: .95,
-    headshotMult: 1.4, chargeMult: 1.1, dashRecovery: 1.4, overdriveDuration: 7,
-    scale: 1.04, weapon: 'flamer', emblem: '✹',
-    description: 'Rocía combustible y deja que el sector arda sin mirarlo.',
-    passive: 'BRASA // sus impactos queman 4/s durante 3 s',
-    perk: { burn: 4 }
-  },
-  aegis: {
-    name: 'AEGIS', role: 'BALUARTE', color: 0x6ef7e7, hex: '#6ef7e7',
-    hp: 205, damage: 34, speed: 6.4, fireRate: .18, maxAmmo: 30, damageTaken: .62,
-    headshotMult: 1.6, chargeMult: .8, dashRecovery: 2.1, overdriveDuration: 9,
-    scale: 1.18, weapon: 'sharder', emblem: '⛨',
-    description: 'Un muro con piernas. Empieza con escudo y lo recupera al matar.',
-    passive: 'MURALLA // +90 de escudo inicial y +6 por baja',
-    perk: { startShield: 90, shieldOnKill: 6 }
-  },
+  // El Guerrero (rook), el Slime (aegis), el Esqueleto (cipher) y los dos
+  // operadores que nunca llegaron al selector (nyx, pyre) quedan eliminados:
+  // el equipo se centra en desarrollar bien estos cinco héroes.
   glitch: {
-    name: 'GLITCH', role: 'ANOMALÍA', color: 0xb56bff, hex: '#b56bff',
+    name: 'LA BRUJA', role: 'MAGIA OSCURA', color: 0xb56bff, hex: '#b56bff',
     hp: 110, damage: 38, speed: 9.0, fireRate: .11, maxAmmo: 24, damageTaken: 1.1,
     headshotMult: 2.0, chargeMult: 1.45, dashRecovery: 1.2, overdriveDuration: 7.5,
-    scale: 1, weapon: 'prism', emblem: '☣',
-    description: 'Impredecible a propósito. Cada disparo lanza un dado de cristal.',
-    passive: 'DADO // 18% de probabilidad de golpe crítico x3',
+    scale: 1, weapon: 'baculo', emblem: '☣',
+    description: 'Control y caos con magia oscura.',
+    passive: 'TORMENTA MÁGICA // Invoca una tormenta de proyectiles.',
     perk: { chaos: .18 }
   },
   seraph: {
-    name: 'SERAPH', role: 'SOPORTE DE ESCUADRA', color: 0xb6ff3d, hex: '#b6ff3d',
+    name: 'EL ARQUERO', role: 'PRECISIÓN A DISTANCIA', color: 0xb6ff3d, hex: '#b6ff3d',
     hp: 130, damage: 29, speed: 8.8, fireRate: .1, maxAmmo: 40, damageTaken: .9,
     headshotMult: 1.75, chargeMult: 1.25, dashRecovery: 1.3, overdriveDuration: 8,
-    scale: 1.02, weapon: 'lmg', emblem: '✚',
-    description: 'Levanta a la escuadra: empieza con dos drones de escolta.',
-    passive: 'CORO // 2 drones de escolta desde el inicio y curan al jugador',
+    scale: 1.02, weapon: 'arco', emblem: '✚',
+    description: 'Precisión y control a distancia.',
+    passive: 'DISPARO MÚLTIPLE // Dispara varias flechas a la vez.',
     perk: { startCompanions: 2 }
   },
   ronin: {
-    name: 'RONIN', role: 'ESPADACHÍN', color: 0xffbf47, hex: '#ffbf47',
+    name: 'EL BÁRBARO', role: 'FUERZA BRUTA', color: 0xffbf47, hex: '#ffbf47',
     hp: 125, damage: 40, speed: 9.6, fireRate: .14, maxAmmo: 18, damageTaken: 1,
     headshotMult: 1.9, chargeMult: 1.2, dashRecovery: .85, overdriveDuration: 6,
-    scale: 1, weapon: 'rail', emblem: '⚔',
-    description: 'Cuerpo a cuerpo primero. Cada baja cuerpo a cuerpo recupera dash.',
-    passive: 'ACERO // +50% de daño cuerpo a cuerpo y dash extra al rematar',
+    scale: 1, weapon: 'hacha', emblem: '⚔',
+    description: 'Fuerza bruta en su máxima expresión.',
+    passive: 'GOLPE SALVAJE // Realiza un gran golpe en área.',
     perk: { meleeMult: 1.5, meleeDash: true }
   },
-  cipher: {
-    name: 'CIPHER', role: 'FRANCOTIRADOR', color: 0x8fdfff, hex: '#8fdfff',
-    hp: 100, damage: 58, speed: 7.6, fireRate: .34, maxAmmo: 12, damageTaken: 1.05,
-    headshotMult: 3.1, chargeMult: .9, dashRecovery: 1.5, overdriveDuration: 6,
-    scale: 1.06, weapon: 'lance', emblem: '➶',
-    description: 'Un disparo, una baja. Atraviesa la fila entera de hostiles.',
-    passive: 'PERFORACIÓN // +4 de perforación y +20% de multiplicador de headshot',
-    perk: { pierce: 4, hsBonus: .2 }
-  }
 };
 
-// fireRate/ammo son multiplicadores sobre el arma base del personaje.
-export const WEAPONS = {
-  smg:    { name:'VXR—9',  sub:'PULSE SMG',      damage:1,   fireRate:1,   ammo:1,   pellets:1, spread:.012, pierce:0, color:0x6ef7e7, kick:.08,  special:false },
-  needle: { name:'HXF—2',  sub:'NEEDLE SMG',     damage:1,   fireRate:1,   ammo:1,   pellets:1, spread:.008, pierce:0, color:0xffbf47, kick:.06,  special:false },
-  cannon: { name:'M90—R',  sub:'HEAVY REPEATER', damage:1,   fireRate:1,   ammo:1,   pellets:1, spread:.018, pierce:0, color:0xff4d38, kick:.16,  special:false },
-  lmg:    { name:'RIEGO M-12', sub:'CINTURÓN LMG', damage:.62, fireRate:.55, ammo:2.8, pellets:1, spread:.055, pierce:1, color:0xffbf47, kick:.05, special:true,
-            how:'Ametralladora de cinturón: cadencia altísima y cargador gigante, pero cada bala hace menos daño.' },
-  shotgun:{ name:'RUPTOR 12',  sub:'PULSE SHOTGUN', damage:.42, fireRate:2.4, ammo:.6, pellets:9, spread:.085, pierce:0, color:0xff4d38, kick:.34, special:true,
-            how:'Escopeta de pulso: dispara 9 perdigones en cono. Devastadora a quemarropa.' },
-  rail:   { name:'AGUJA MK3',  sub:'RAIL LANCE',   damage:4.4, fireRate:3.4, ammo:.4, pellets:1, spread:0, pierce:6, color:0x6ef7e7, kick:.42, special:true,
-            how:'Lanza de riel: disparo lento que ATRAVIESA hasta 6 enemigos en línea recta.' },
-  flak:   { name:'FL-4 ANTIAÉREO', sub:'FLAK CANNON', damage:.78, fireRate:1.15, ammo:1.3, pellets:3, spread:.1, pierce:0, color:0xffbf47, kick:.22, special:true,
-            how:'Cañón antiaéreo: tres proyectiles en abanico, ideal para enemigos voladores.' },
-  mortar: { name:'TRUENO 8', sub:'MORTERO DE PULSO', damage:2.6, fireRate:2.8, ammo:.45, pellets:1, spread:.02, pierce:0, color:0xff4d38, kick:.3, special:true, explosive:true,
-            how:'Mortero: proyectil pesado que explota en área al impactar.' },
-  // ---- segunda hornada: armas de elemento y control ------------------------
-  arcer:  { name:'ARCO VX',  sub:'ARC CHAIN',        damage:.9,  fireRate:1.05, ammo:1.1, pellets:1, spread:.03, pierce:1, color:0x9ff7ff, kick:.12, special:true, chain:2,
-            how:'Cada impacto salta en arco a los hostiles cercanos. Cuanto más apiñados, mejor.' },
-  flamer: { name:'FL-7 PYRO', sub:'LANZALLAMAS',     damage:.34, fireRate:.28, ammo:2.6, pellets:1, spread:.09, pierce:2, color:0xff6a3d, kick:.02, special:true, burn:3.4,
-            how:'Chorro continuo de combustible: prende a todo lo que toca y lo consume por segundo.' },
-  prism:  { name:'PRISMA 3', sub:'REFRACTOR',        damage:.72, fireRate:.85, ammo:1.2, pellets:3, spread:.13, pierce:1, color:0xb56bff, kick:.14, special:true, ricochet:2,
-            how:'Tres fragmentos de luz que rebotan de un hostile al siguiente.' },
-  sharder:{ name:'CRISTALIZADORA', sub:'SHARD CANNON', damage:1.5, fireRate:1.5, ammo:.9, pellets:2, spread:.07, pierce:1, color:0x6ef7e7, kick:.2, special:true, shatter:true,
-            how:'Clava cristales que revientan en fragmentos al segundo impacto.' },
-  disruptor:{ name:'DISRUPTOR', sub:'PULSE NULLIFIER', damage:1.9, fireRate:1.9, ammo:.8, pellets:1, spread:.015, pierce:4, color:0xb56bff, kick:.26, special:true, slow:.5,
-            how:'Orbe pesado que atraviesa la fila y deja a los tocados moviéndose a cámara lenta.' },
-  cyclone:{ name:'CICLÓN',   sub:'ROTOR GUN',        damage:.5,  fireRate:.34, ammo:2.2, pellets:2, spread:.05, pierce:2, color:0xffbf47, kick:.03, special:true,
-            how:'Dos anillos de munición giratoria: cadencia absurda y daño sostenido.' },
-  nailer: { name:'CLAVADOR N9', sub:'NAIL DRIVER',   damage:.44, fireRate:.22, ammo:2.4, pellets:1, spread:.02, pierce:2, color:0xffbf47, kick:.04, special:true,
-            how:'Clava pernos a un ritmo imposible. Poca pegada por bala, mucha por segundo.' },
-  voidcaster:{ name:'VACIADOR', sub:'VOID CASTER',   damage:1.7, fireRate:1.6, ammo:.7, pellets:2, spread:.06, pierce:0, color:0xb56bff, kick:.24, special:true, homing:true,
-            how:'Dos orbes del vacío que corrigen el rumbo hacia el hostile más cercano.' },
-  lance:  { name:'LANZA LARGA', sub:'RAIL LANCE MK9', damage:6.2, fireRate:4.2, ammo:.3, pellets:1, spread:0, pierce:12, color:0x8fdfff, kick:.55, special:true, trail:true,
-            how:'Un solo disparo que atraviesa la fila entera. Lento, definitivo.' },
-  beamgun:{ name:'LUMEN',    sub:'BEAM EMITTER',     damage:.58, fireRate:.16, ammo:3.0, pellets:1, spread:.008, pierce:6, color:0x9ff7ff, kick:.015, special:true,
-            how:'Haz continuo: no hay proyectil, el daño llega al instante en línea recta.' },
-  scatter:{ name:'LLUVIA DE FRAGMENTOS', sub:'FRAG SPRAY', damage:.36, fireRate:1.35, ammo:1.0, pellets:12, spread:.12, pierce:0, color:0x6ef7e7, kick:.28, special:true,
-            how:'Doce fragmentos en abanico: barre grupos a corta distancia.' },
-  thunder:{ name:'TRUENO 9', sub:'RAIL MORTAR',      damage:3.6, fireRate:3.4, ammo:.35, pellets:1, spread:.01, pierce:3, color:0xffbf47, kick:.44, special:true, explosive:true, doubleBlast:true,
-            how:'Mortero de riel: dos detonaciones en cadena sobre el mismo punto.' }
-};
+// ---------------------------------------------------------------------------
+// Arsenal unico: los cinco heroes y sus armas estan en src/weapons.js.
+// El campo weapon guarda la clave legible del arma unica del heroe.
+// ---------------------------------------------------------------------------
 
 // Habilidades especiales de botín (estilo supervivencia automática).
 export const ABILITIES = [
@@ -320,58 +243,11 @@ export const UPGRADES = [
 ];
 
 // ---------------------------------------------------------------------------
-// Armas cuerpo a cuerpo (ranura E). Cada una tiene un especial propio.
-export const MELEE = [
-  {
-    id:'blade', name:'HOJA DE FASE', sub:'CUCHILLA CORTA', icon:'⚔', color:'#6ef7e7',
-    damage:2.35, cooldown:.42, range:3.2, arc:1.25, knock:6, unlock:'DESDE EL INICIO',
-    how:'Barrido rápido delante de ti. Golpea a varios hostiles a la vez y empuja.',
-    special:{ id:'phaseblink', name:'CORTE FANTASMA', desc:'Al rematar con la hoja recuperas un dash y ganas 1 s de invulnerabilidad.' }
-  },
-  {
-    id:'hammer', name:'MARTILLO KINÉTICO', sub:'MAZA DE IMPACTO', icon:'⚒', color:'#ffbf47',
-    damage:5.2, cooldown:1.15, range:3.6, arc:1.6, knock:14, unlock:'RONDA 4',
-    how:'Golpe pesado en arco amplio. Lento, pero revienta blindaje y levanta a los hostiles.',
-    special:{ id:'shatter', name:'QUEBRANTA', desc:'El impacto destruye el blindaje de un golpe y lanza una onda de daño en 4 m.' }
-  },
-  {
-    id:'lance', name:'LANZA MONOFILAMENTO', sub:'ESTOCADA LARGA', icon:'➶', color:'#b56bff',
-    damage:3.1, cooldown:.72, range:5.4, arc:.5, knock:4, unlock:'RONDA 7',
-    how:'Estocada recta de largo alcance que ATRAVIESA a todos los hostiles en línea.',
-    special:{ id:'lunge', name:'IMPULSO', desc:'La estocada te desplaza hacia delante y deja una estela que corta.' }
-  },
-  {
-    id:'claws', name:'GARRAS DE PLASMA', sub:'CORTE RÁPIDO', icon:'✧', color:'#ff4d38',
-    damage:1.5, cooldown:.24, range:2.8, arc:1.0, knock:2, unlock:'RONDA 10',
-    how:'Dos zarpazos rapidísimos. Poco daño por golpe, pero aturde y roba vida.',
-    special:{ id:'leech', name:'HEMORRAGIA', desc:'Cada golpe recupera 3 de vida. A los 8 golpes seguidos sueltas una descarga.' }
-  },
-  // ---- segunda hornada de cuerpo a cuerpo ---------------------------------
-  {
-    id:'scythe', name:'GUADAÑA DE FASE', sub:'BARRIDO AMPLIO', icon:'✂', color:'#9ff7ff',
-    damage:2.9, cooldown:.62, range:4.4, arc:2.1, knock:5, unlock:'RONDA 5',
-    how:'Barrido circular de 360°. Alcanza a todo lo que te rodea sin apuntar.',
-    special:{ id:'whirl', name:'Torbellino', desc:'El barrido te levanta del suelo: esquivas disparos mientras giras.' }
-  },
-  {
-    id:'fists', name:'PUÑOS DE PISTÓN', sub:'COMBATE CERRADO', icon:'✊', color:'#ffbf47',
-    damage:1.9, cooldown:.18, range:2.4, arc:.9, knock:9, unlock:'RONDA 8',
-    how:'Golpea con los dos puños alternos. Cada tercer golpe es un uppercut.',
-    special:{ id:'uppercut', name:'UPPERCUT', desc:'El tercer golpe lanza al hostile por los aires y lo deja aturdido.' }
-  },
-  {
-    id:'whip', name:'LÁTIGO DE DATOS', sub:'ALCANCE MEDIO', icon:'∿', color:'#b56bff',
-    damage:2.2, cooldown:.5, range:6.2, arc:.35, knock:3, unlock:'RONDA 12',
-    how:'Chasquido en línea recta que alcanza más lejos que cualquier hoja.',
-    special:{ id:'pull', name:'ARRANQUE', desc:'Atrae al hostile hacia ti. Ideal para rematar con la espalda cubierta.' }
-  },
-  {
-    id:'anchor', name:'ANCLA SÍSMICA', sub:'GOLPE DE SUELO', icon:'⚓', color:'#ff4d38',
-    damage:6.4, cooldown:1.5, range:3.0, arc:2.6, knock:18, unlock:'RONDA 15',
-    how:'Clavas el ancla y revientas el suelo en círculo. Lentísimo, definitivo.',
-    special:{ id:'shock', name:'ONDASÍSMICA', desc:'Tres ondas concéntricas que se expanden y derriban a todo el grupo.' }
-  }
-];
+// Sistema de armas intercambiables, arma por defecto compartida y ranura de
+// cuerpo a cuerpo: ELIMINADOS. Ahora hay UNA sola arma por heroe, definida en
+// src/weapons.js (WEAPON_DEFS). La ranura E ejecuta el ataque de esa arma.
+// Las definiciones de UTILITY (G), ABILITIES y UPGRADES siguen intactas.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Ranura de utilidad (tecla G). Se recarga con el tiempo, no con munición.
@@ -514,7 +390,7 @@ export const DIFFICULTIES = [
 export const LEVELS = [
   {
     id:'rooftop', name:'PRADERAS FELICES', faction:'SYNTEK', boss:'WARDEN', style:'plaza',
-    tagline:'Praderas de bloques a mediodía: mesetas de hierba, cortados de piedra, riachuelos con puentes y un castillo blanco en el horizonte.',
+    tagline:'Pradera y bosque encantado a mediodía: hierba, flores y setas del Kenney Nature Kit, con arboledas, rocas y troncos como cobertura.',
     difficulty:'RIESGO MEDIO', rewardMult:1,
     floor:0x111a1e, accent:'#7fc9bd', accentHex:0x6ef7e7, fog:0x071014, sky:0x05090d, hemi:0x7cb5c4, moon:0xb8e9ef,
     layout:[
@@ -828,13 +704,13 @@ export const SLOTS = {
   symbols: [
     { id:'dmg',  icon:'⚡', label:'DAÑO',     color:'#6ef7e7', plain:'Daño permanente durante esta partida' },
     { id:'def',  icon:'⛨', label:'ESCUDO',   color:'#6ef7e7', plain:'Escudo y vida extra' },
-    { id:'wpn',  icon:'➶', label:'ARMA',     color:'#ffbf47', plain:'Una arma especial nueva' },
+    { id:'wpn',  icon:'➶', label:'BENDICIÓN', color:'#ffbf47', plain:'Potencia el arma única del héroe' },
     { id:'epic', icon:'★', label:'ÉPICA',    color:'#ff4d38', plain:'Mutaciones épicas del arsenal' },
     { id:'chip', icon:'◆', label:'CHIPS',    color:'#ffbf47', plain:'Chips de datos para volver a girar' },
     { id:'skull',icon:'☠', label:'RIESGO',   color:'#b56bff', plain:'Más puntos, pero los hostiles se enfurecen' }
   ],
   rules: [
-    ['3 IGUALES', 'Jackpot: mutaciones épicas + arma especial'],
+    ['3 IGUALES', 'Jackpot: mutaciones épicas + bendición del arma única'],
     ['2 IGUALES', 'Premio parcial del símbolo repetido'],
     ['NINGUNO', 'Consuelo: 120 chips de datos'],
     ['☠ TRIPLE', 'Maldición: hostiles más rápidos, puntos ×1.75']

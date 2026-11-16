@@ -18,13 +18,16 @@ piezas 3D estilo voxel incluidos en `assets/`.
 
 - **5 heroes definitivos** (Vanta, Kira, Seraph, Ronin y Glitch), cada uno con
   modelo GLB propio y **un arma unica** con modelo y ancla de disparo reales.
-- **Arbol de habilidades**, evoluciones y reliquias para construir tu build.
+- **Arbol de habilidades** con **50 habilidades**, 20 reliquias, 10 pactos y
+  5 sinergias (6 slots por heroe, hasta nivel 5) e iconos propios.
 - **12 sectores** de progresion resueltos sobre **7 mundos** construidos con
   kits de piezas (naturaleza, nieve, minimercado, barrio, estacion, espacio y
   hexagono), con arquitectura modular (`src/worlds/`) y fallback voxel
   temporal para los mundos aun no implementados.
-- **18 jefes** con fases y mecanicas propias; facciones, logros,
-  modificadores, dificultades, tienda y records.
+- **Bestiario animado** por bioma con modelos GLB/glTF reales: hostiles
+  cuerpo a cuerpo, a distancia, tanques y voladores, 7 elites y **21 jefes**
+  (3 por bioma) con fases y mecanicas propias.
+- Facciones, logros, modificadores, dificultades, tienda y records.
 - Sistema de sonido real con Web Audio: banco de **124 efectos** (Kenney RPG
   Audio + Sci-Fi Sounds) y musica sintetizada en tiempo real.
 - Particulas y proyectiles nuevos con object pooling, bloom y calidad
@@ -56,7 +59,8 @@ abrir `preview.html` en un navegador para ver las tarjetas de los sectores.
 | `npm run dev` | Inicia el juego con logging habilitado |
 | `npm run check` | Comprueba la sintaxis de los modulos principales |
 | `npm run dist` | Genera el instalador con electron-builder |
-| `node scripts/start.cjs --smoke-test` | Pasada automatica de verificacion (requiere pantalla) |
+| `npm start -- --models-preview` | Abre el estudio interactivo de criaturas |
+| `npm start -- --smoke-test` | Pasada automatica de verificacion (requiere pantalla) |
 
 ## Estructura
 
@@ -70,6 +74,15 @@ src/weapons.js    Arsenal unico por heroe (GLB + ancla de disparo)
 src/combat-particles.js  Particulas de combate
 src/combat-projectiles.js  Proyectiles con object pooling
 src/sfx.js        Efectos de sonido (Web Audio)
+src/SkillsDatabase.js  Habilidades, reliquias, pactos y sinergias
+src/SkillManager.js  Progression y slots de habilidades
+src/skill-icons.js  Iconos de habilidades
+src/BossDatabase.js  Base de datos de los 21 jefes
+src/bosses.js     Logica de combate de jefes
+src/EnemyRoster.js  Rosters de hostiles por bioma
+src/EnemyBoids.js  Comportamiento de grupos de hostiles
+src/CreatureModels.js  Carga y animacion de modelos GLB/glTF
+src/WorldElites.js  Elites por mundo
 src/operators.js  Cuerpos y balance de los operadores
 src/content.js    Tablas de contenido: roster, sectores, habilidades
 src/arsenal.js    Evoluciones y reliquias
@@ -79,6 +92,7 @@ src/WorldManager.js  Gestor de construccion de mundos
 src/style.css     Estilos y HUD
 scripts/          Utilidades de prueba, captura y generacion de assets
 assets/           Modelos GLB, audio, texturas, UI y fuentes
+models-preview.html  Estudio interactivo de criaturas
 art/              Tarjetas de los sectores
 docs/             Capturas que usa este README
 ```
@@ -89,8 +103,11 @@ docs/             Capturas que usa este README
   pruebas ni `kenney_src/` (el pack fuente de piezas que usan los scripts de
   Python para generar los assets optimizados de `assets/worlds/`); todo eso
   se regenera en local.
-- El lanzador `JUGAR.cmd` usado durante el desarrollo apunta a una instalacion
-  local de Node y por eso no se versiona. En su lugar, usa `npm start`.
+- Los modelos fuente FBX/OBJ/MTL tampoco se versionan: el juego carga solo
+  `.glb`/`.gltf` (mas sus texturas y `.bin`) desde `assets/`.
+- El lanzador `JUGAR.cmd` / `ESTUDIO-CRIATURAS.cmd` apunta a una instalacion
+  local de Node y por eso no se versiona. En su lugar, usa `npm start` o
+  `npm start -- --models-preview`.
 - Proyecto personal en desarrollo activo: puede haber cambios importantes entre
   versiones.
 

@@ -1,0 +1,4431 @@
+{
+ "enemies/kaykit-skeletons": {
+  "models": [
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/Animations/gltf/Rig_Medium/Rig_Medium_General.glb",
+    "format": "glb",
+    "animations": [
+     "Death_A",
+     "Death_A_Pose",
+     "Death_B",
+     "Death_B_Pose",
+     "Hit_A",
+     "Hit_B",
+     "Idle_A",
+     "Idle_B",
+     "Interact",
+     "PickUp",
+     "Spawn_Air",
+     "Spawn_Ground",
+     "T-Pose",
+     "Throw",
+     "Use_Item"
+    ],
+    "skinned": true,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb",
+    "format": "glb",
+    "animations": [
+     "Jump_Full_Long",
+     "Jump_Full_Short",
+     "Jump_Idle",
+     "Jump_Land",
+     "Jump_Start",
+     "Running_A",
+     "Running_B",
+     "T-Pose",
+     "Walking_A",
+     "Walking_B",
+     "Walking_C"
+    ],
+    "skinned": true,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Arrow.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Arrow_Broken.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Arrow_Broken_Half.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Arrow_Half.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Axe.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Blade.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Crossbow.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Quiver.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Shield_Large_A.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Shield_Large_B.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Shield_Small_A.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Shield_Small_B.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Staff.gltf",
+    "format": "gltf",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/characters/gltf/Skeleton_Mage.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": true,
+    "meshes": 9,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/characters/gltf/Skeleton_Minion.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": true,
+    "meshes": 9,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/characters/gltf/Skeleton_Rogue.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": true,
+    "meshes": 10,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kaykit-skeletons/KayKit_Skeletons_1.1_FREE/characters/gltf/Skeleton_Warrior.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": true,
+    "meshes": 10,
+    "selfContained": false
+   }
+  ],
+  "count": 19
+ },
+ "enemies/kenney-blocky": {
+  "models": [
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-a.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-b.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-c.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-d.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-e.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-f.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-g.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-h.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-i.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-j.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-k.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-l.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-m.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-n.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-o.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-p.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-q.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "enemies/kenney-blocky/Models/GLB format/character-r.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   }
+  ],
+  "count": 18
+ },
+ "enemies/quaternius-cute": {
+  "models": [
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Alien.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Alien_Tall.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Bat.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Death",
+     "Flying",
+     "HitRecieve"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Bee.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Death",
+     "Flying",
+     "HitRecieve"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Cactus.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Chicken.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Crab.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Cthulhu.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Death",
+     "Flying",
+     "HitRecieve"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Cyclops.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Deer.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Demon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Ghost.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/GreenDemon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Mushroom.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Panda.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Penguin.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Pig.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Skull.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Tree.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/YellowDragon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Death",
+     "Flying",
+     "HitRecieve"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "enemies/quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/Yeti.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Bite_InPlace",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   }
+  ],
+  "count": 21
+ },
+ "enemies/quaternius-monster-pack": {
+  "models": [],
+  "count": 0
+ },
+ "bosses/kenney-fantasy-town": {
+  "models": [
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/balcony-wall-fence.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/balcony-wall.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/banner-green.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/banner-red.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/blade.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/cart-high.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 3,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/cart.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 3,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/chimney-base.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/chimney-top.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/chimney.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fence-broken.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fence-curved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fence-gate.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fence.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-center.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-corner-inner-square.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-corner-inner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-corner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-curved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-edge.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-round-detail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-square-detail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/fountain-square.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/hedge-curved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/hedge-gate.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/hedge-large-curved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/hedge-large-gate.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/hedge-large.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/hedge.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/lantern.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/overhang.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/pillar-stone.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/pillar-wood.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/planks-half.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/planks-opening.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/planks.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/poles-horizontal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/poles.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road-bend.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road-corner-inner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road-corner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road-curb-end.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road-curb.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road-edge-slope.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road-edge.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road-slope.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/road.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/rock-large.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/rock-small.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/rock-wide.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-corner-inner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-corner-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-corner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-flat.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-gable-detail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-gable-end.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-gable-top.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-gable.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-corner-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-corner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-cornerinner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-flat.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-gable-detail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-gable-end.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-gable-top.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-gable.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-left.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-point.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-right.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high-window.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-high.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-left.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-point.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-right.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof-window.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/roof.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-full-corner-inner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-full-corner-outer.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-full.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-stone-corner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-stone-handrail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-stone-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-stone.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-wide-stone-handrail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-wide-stone.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-wide-wood-handrail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-wide-wood.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-wood-handrail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stairs-wood.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stall-bench.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stall-green.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stall-red.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stall-stool.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/stall.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/tree-crooked.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/tree-high-crooked.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/tree-high-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/tree-high.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/tree.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-arch-top-detail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-arch-top.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-arch.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-block-half.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-block.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-broken.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-corner-detail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-corner-diagonal-half.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-corner-diagonal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-corner-edge.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-corner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-curved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-detail-cross.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-detail-diagonal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-detail-horizontal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-diagonal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-door.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-doorway-base.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-doorway-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-doorway-square-wide-curved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-doorway-square-wide.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-doorway-square.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-half.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-rounded.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-side.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-slope.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-window-glass.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-window-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-window-shutters.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-window-small.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-window-stone.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-arch-top-detail.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-arch-top.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-arch.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-block-half.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-block.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-broken.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-corner-diagonal-half.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-corner-diagonal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-corner-edge.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-corner.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-curved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-detail-cross.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-detail-diagonal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-detail-horizontal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-diagonal.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-door.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-doorway-base.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-doorway-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-doorway-square-wide-curved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-doorway-square-wide.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-doorway-square.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-half.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-rounded.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-side.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-slope.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-window-glass.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-window-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-window-shutters.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-window-small.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood-window-stone.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall-wood.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wall.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/watermill-wide.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/watermill.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/wheel.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-fantasy-town/Models/GLB format/windmill.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   }
+  ],
+  "count": 167
+ },
+ "bosses/kenney-graveyard": {
+  "models": [
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/altar-stone.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/altar-wood.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/bench-damaged.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/bench.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/border-pillar.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/brick-wall-curve-small.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/brick-wall-curve.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/brick-wall-end.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/brick-wall.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/candle-multiple.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/candle.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/character-ghost.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-look-left",
+     "wheelchair-look-right",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 3,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/character-keeper.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-look-left",
+     "wheelchair-look-right",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/character-skeleton.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-look-left",
+     "wheelchair-look-right",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/character-vampire.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-look-left",
+     "wheelchair-look-right",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/character-zombie.glb",
+    "format": "glb",
+    "animations": [
+     "static",
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "drive",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "holding-right-shoot",
+     "holding-left-shoot",
+     "holding-both-shoot",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "attack-kick-left",
+     "interact-right",
+     "interact-left",
+     "wheelchair-sit",
+     "wheelchair-look-left",
+     "wheelchair-look-right",
+     "wheelchair-move-forward",
+     "wheelchair-move-back",
+     "wheelchair-move-left",
+     "wheelchair-move-right"
+    ],
+    "skinned": false,
+    "meshes": 6,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/coffin-old.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/coffin.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/column-large.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/cross-column.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/cross-wood.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/cross.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt-a.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt-b.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt-door.glb",
+    "format": "glb",
+    "animations": [
+     "open",
+     "close",
+     "open-and-close"
+    ],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt-large-door.glb",
+    "format": "glb",
+    "animations": [
+     "open",
+     "close",
+     "open-and-close"
+    ],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt-large-roof.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt-large.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt-small-roof.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt-small.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/crypt.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/debris-wood.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/debris.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/detail-bowl.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/detail-chalice.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/detail-plate.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/fence-damaged.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/fence-gate.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/fence.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/fire-basket.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/grave-border.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/grave.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-bevel.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-broken.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-cross-large.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-cross.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-debris.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-decorative.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-roof.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/gravestone-wide.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/hay-bale-bundled.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/hay-bale.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/iron-fence-bar.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/iron-fence-border-column.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/iron-fence-border-curve.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/iron-fence-border-gate.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/iron-fence-border.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/iron-fence-curve.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/iron-fence-damaged.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/iron-fence.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/lantern-candle.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/lantern-glass.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/lightpost-all.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/lightpost-double.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/lightpost-single.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pillar-large.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pillar-obelisk.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pillar-small.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pillar-square.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pine-crooked.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pine-fall-crooked.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pine-fall.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pine.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pumpkin-carved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pumpkin-tall-carved.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pumpkin-tall.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/pumpkin.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/road.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/rocks-tall.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/rocks.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/shovel-dirt.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/shovel.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/stone-wall-column.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/stone-wall-curve.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/stone-wall-damaged.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/stone-wall.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/trunk-long.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/trunk.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 1,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/urn-round.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   },
+   {
+    "file": "bosses/kenney-graveyard/Models/GLB format/urn-square.glb",
+    "format": "glb",
+    "animations": [],
+    "skinned": false,
+    "meshes": 2,
+    "selfContained": false
+   }
+  ],
+  "count": 91
+ },
+ "bosses/quaternius-ultimate": {
+  "models": [
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Alien.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Birb.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/BlueDemon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Bunny.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Cactoro.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Demon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Dino.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Fish.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Frog.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Monkroose.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/MushroomKing.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Ninja.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Orc.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Orc_Skull.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Tribal.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Big/glTF/Yeti.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Duck",
+     "HitReact",
+     "Idle",
+     "Jump",
+     "Jump_Idle",
+     "Jump_Land",
+     "No",
+     "Punch",
+     "Run",
+     "Walk",
+     "Wave",
+     "Weapon",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Alien.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Birb.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Cactoro.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Cat.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Chicken.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Dog.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Fish.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 3,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/GreenBlob.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/GreenSpikyBlob.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Mushnub.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Mushnub_Evolved.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 3,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Ninja.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Orc.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Pigeon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/PinkBlob.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Wizard.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 2,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Blob/glTF/Yeti.gltf",
+    "format": "gltf",
+    "animations": [
+     "Bite_Front",
+     "Dance",
+     "Death",
+     "HitRecieve",
+     "Idle",
+     "Jump",
+     "No",
+     "Walk",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Alpaking.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Alpaking_Evolved.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Armabee.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Armabee_Evolved.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Demon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Flying_Idle"
+    ],
+    "skinned": true,
+    "meshes": 3,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Dragon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Dragon_Evolved.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Ghost.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Ghost_Skull.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Glub.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Glub_Evolved.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Goleling.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Goleling_Evolved.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Hywirl.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Pigeon.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Squidle.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   },
+   {
+    "file": "bosses/quaternius-ultimate/Ultimate Monsters/Flying/glTF/Tribal.gltf",
+    "format": "gltf",
+    "animations": [
+     "Death",
+     "Fast_Flying",
+     "Flying_Idle",
+     "Headbutt",
+     "HitReact",
+     "No",
+     "Punch",
+     "Yes"
+    ],
+    "skinned": true,
+    "meshes": 1,
+    "selfContained": true
+   }
+  ],
+  "count": 50
+ }
+}

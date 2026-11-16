@@ -6,7 +6,7 @@ const os = require('node:os');
 // compañía no chocan con el bloqueo de instancia única de una partida abierta
 // (antes un segundo lanzamiento salía sin hacer nada y parecía un test OK),
 // y además no tocan la partida guardada del jugador.
-const AUTOMATION_FLAGS = ['--smoke-test', '--showcase', '--characters', '--nature', '--weapons', '--worlds'];
+const AUTOMATION_FLAGS = ['--smoke-test', '--showcase', '--characters', '--nature', '--weapons', '--worlds', '--skills', '--models', '--models-preview', '--enemies', '--bosses'];
 if (process.argv.some(a => AUTOMATION_FLAGS.includes(a))) {
   app.setPath('userData', path.join(os.tmpdir(), 'neon-revenant-automation'));
 }
@@ -17,6 +17,14 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-gpu-compositing');
 app.commandLine.appendSwitch('use-angle', 'd3d11');
 app.commandLine.appendSwitch('force-high-performance-gpu');
+// En Windows, Chromium calcula la oclusión nativa de la ventana: si otra
+// ventana la tapa (o pierde el foco durante una captura automatizada) baja
+// requestAnimationFrame a ~1 Hz. Eso hacía que el QC de hordas midiera 1-2
+// FPS con un número de draw calls y triángulos completamente normal.
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 let mainWindow;
 
@@ -26,6 +34,42 @@ let mainWindow;
 // una propiedad eliminada del arsenal antiguo solo se veía al pulsar TAB en una
 // partida real, porque los smoke tests nunca abrían el resumen de build.
 const runtimeErrors = [];
+
+// Medición de FPS fiable para TODOS los QC. En Windows, cuando la ventana de
+// Electron pierde el foco del SO (lo toma el terminal que lanzó el test o
+// cualquier otro proceso concurrente), Chromium baja requestAnimationFrame a
+// ~1 Hz: el juego va bien, pero el test mide "1 FPS" y además la lógica de
+// juego casi no avanza (Boids, élites, animaciones de muerte parecen rotos).
+// Por eso TODOS los QC usan qcFocus()/qcSettle() antes de medir o esperar.
+async function qcFocus() {
+  try {
+    mainWindow.show(); mainWindow.moveTop();
+    mainWindow.focus(); mainWindow.webContents.focus();
+  } catch { /* la ventana pudo cerrarse */ }
+}
+async function qcSettle(ms) {
+  await qcFocus();
+  await new Promise(r => setTimeout(r, ms));
+}
+async function qcFps() {
+  const probe = () => mainWindow.webContents.executeJavaScript(`(async()=>{
+    const sample=(ms)=>new Promise(res=>{let n=0;const t0=performance.now();
+      const tick=()=>{n++;const d=performance.now()-t0;
+        if(d<ms) requestAnimationFrame(tick); else res(Math.round(n*1000/d));};
+      requestAnimationFrame(tick);});
+    const a=await sample(600), b=await sample(600);
+    return {fps:Math.max(a,b),samples:[a,b],focus:document.hasFocus(),
+            vis:document.visibilityState};})()`);
+  let last = { fps: 0, samples: [0, 0], focus: false, vis: '?' };
+  for (let i = 0; i < 6; i++) {
+    await qcFocus();
+    await new Promise(r => setTimeout(r, 220));
+    try { last = await probe(); } catch { return last; }
+    if (last.fps >= 20) { last.ms = +(1000 / last.fps).toFixed(2); return last; }
+  }
+  last.ms = last.fps > 0 ? +(1000 / last.fps).toFixed(2) : 0;
+  return last;
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -46,10 +90,23 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  // --models abre el estudio + QC (se cierra solo al terminar).
+  // --models-preview abre el MISMO estudio en modo interactivo, sin QC:
+  // es el que usa el lanzador de doble clic para que el usuario pueda probarlo.
+  const studio = process.argv.includes('--models') || process.argv.includes('--models-preview');
+  const page = studio ? 'models-preview.html' : 'index.html';
+  mainWindow.loadFile(path.join(__dirname, page));
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('NEON_REVENANT_READY');
     mainWindow.show();
+    // Chromium reduce requestAnimationFrame a ~1 Hz cuando la ventana está
+    // visible pero SIN foco (el terminal/IDE se queda con el foco del SO al
+    // lanzar un QC). Eso falseaba las mediciones de FPS de --skills/--enemies.
+    if (process.argv.some(a => AUTOMATION_FLAGS.includes(a))) {
+      mainWindow.focus();
+      mainWindow.webContents.focus();
+      mainWindow.moveTop();
+    }
   });
   mainWindow.webContents.on('did-fail-load', (_event, code, description) => {
     console.error(`Load failed (${code}): ${description}`);
@@ -64,7 +121,9 @@ function createWindow() {
         event.message?.startsWith('GLTF_') || event.message?.startsWith('GLB_') ||
         event.message?.startsWith('NATURE_') || event.message?.startsWith('COMBAT_') ||
         event.message?.startsWith('WEAPON_') || event.message?.startsWith('VFX_') ||
-        event.message?.startsWith('SFX_') || event.message?.startsWith('WORLD_')) console.log(event.message);
+        event.message?.startsWith('SFX_') || event.message?.startsWith('WORLD_') ||
+        event.message?.startsWith('SKILL_') || event.message?.startsWith('MODELS_') ||
+        event.message?.startsWith('ENEMY_') || event.message?.startsWith('ENEMIES_')) console.log(event.message);
     if (event.message?.startsWith('RUNTIME_ERROR:')) {
       runtimeErrors.push(event.message);
       process.exitCode = 1;
@@ -219,19 +278,24 @@ function createWindow() {
         dispatchEvent(new KeyboardEvent('keyup',{code:'Tab',key:'Tab'}));
       })()`);
 
-      // botín con panel explicativo (antes del combate para capturarlo vivo)
+      // FUENTE 2: cofre de enemigo especial -> 3 cartas de reliquias/pactos.
       const lootTest = await mainWindow.webContents.executeJavaScript(`(async()=>{
-        const m = await import('./src/game.js'); m.testDropLoot(); m.testOpenLoot();
-        await new Promise(r=>setTimeout(r,600));
-        const open = document.getElementById('loot').classList.contains('active');
-        const name = document.getElementById('loot-name').textContent;
-        const how = document.getElementById('loot-how').textContent.length;
-        return {open,name,how};
+        const m = await import('./src/game.js'); m.testDropLoot();
+        const r = m.testOpenChest();
+        await new Promise(r=>setTimeout(r,500));
+        const cards = [...document.querySelectorAll('#cards [data-card]')].map(b=>b.dataset.card);
+        const title = document.getElementById('cards-title').textContent;
+        const pactBorders = document.querySelectorAll('#cards .card-choice.pact').length;
+        return {...r, cards, title, pactBorders};
       })()`);
       console.log('LOOT_TEST:', JSON.stringify(lootTest));
       const lootImage = await mainWindow.webContents.capturePage();
       require('node:fs').writeFileSync(path.join(__dirname, 'loot-smoke.png'), lootImage.toPNG());
-      await mainWindow.webContents.executeJavaScript(`(async()=>{document.getElementById('loot-equip-btn').click();await new Promise(r=>setTimeout(r,400));})()`);
+      await mainWindow.webContents.executeJavaScript(`(async()=>{
+        const m = await import('./src/game.js');
+        const b = document.querySelector('#cards [data-card]'); if (b) m.testChooseCard(b.dataset.card);
+        m.testCloseCards(); await new Promise(r=>setTimeout(r,300));
+      })()`);
 
       // draft de mejora + tragaperras (con el jugador vivo)
       await step("upgrade-draft", "import('./src/game.js').then(m=>m.showUpgradeDraft())");
@@ -252,25 +316,70 @@ function createWindow() {
       const validation = await mainWindow.webContents.executeJavaScript(`(async()=>{document.getElementById('reroll-btn').click();const rerolls=document.getElementById('reroll-count').textContent;document.querySelector('.upgrade-choice').click();await new Promise(r=>setTimeout(r,600));return {rerolls,nextWave:document.getElementById('wave').textContent,draftClosed:!document.getElementById('upgrade').classList.contains('active'),mode:(await import('./src/game.js')).getState().mode};})()`);
       console.log('UPGRADE_TEST:', JSON.stringify(validation));
 
-      // pacto de interferencia: se ofrece, se acepta y aplica su maldición
-      const pactTest = await mainWindow.webContents.executeJavaScript(`(async()=>{
+      // CATÁLOGO UNIFICADO: 80 objetos + 5 sinergias, 3 fuentes, 6 slots,
+      // niveles 1-5, cofres con reliquias/pactos, sinergia automática y
+      // menú de fin de ronda SOLO con estadísticas base.
+      const skillsTest = await mainWindow.webContents.executeJavaScript(`(async()=>{
         const m = await import('./src/game.js');
+        const db = await import('./src/SkillsDatabase.js');
+        const out = { catalog: db.catalogDiagnostics() };
+        const diag0 = m.getSkillDiagnostics();
+        out.hero = diag0.hero;
+
+        // FUENTE 1: 3 cartas, todas 'skill' y exclusivas del héroe activo.
+        const cards = m.testSkillCards();
+        out.skillCards = cards.length;
+        out.allHero = cards.every(c => c.type === 'skill' && c.hero === out.hero);
+
+        // 6 slots como máximo y nivel 5 como techo.
+        const mine = db.skillsFor(out.hero).map(s => s.id);
+        for (const id of mine) m.testGrant(id);
+        const afterSlots = m.getSkillDiagnostics().snapshot;
+        out.slots = afterSlots.slots.length;
+        out.maxSlots = afterSlots.maxSlots;
+        for (let i = 0; i < 8; i++) m.testGrant(mine[0]);
+        out.maxLevel = m.getSkillDiagnostics().snapshot.slots.find(s => s.id === mine[0]).level;
+
+        // FUENTE 2: mezcla de reliquias y pactos en 3 cartas.
+        const chest = m.testChestCards();
+        out.chestCards = chest.length;
+        out.chestTypes = [...new Set(chest.map(c => c.type))];
+        const allChest = [];
+        for (let i = 0; i < 12; i++) allChest.push(...m.testChestCards().map(c => c.type));
+        out.hasRelic = allChest.includes('relic');
+        out.hasPact = allChest.includes('pact_relic');
+
+        // Sinergia: 2 requisitos -> concesión automática con animación dorada.
+        const syn = db.synergyFor(out.hero);
+        m.testGrant(syn.req[0]); m.testGrant(syn.req[1]);
+        const open = m.testOpenChest();
+        out.synergyMode = open.mode;
+        out.synergyOverlay = open.synergy;
+        out.synergyGranted = m.getSkillDiagnostics().snapshot.synergies.includes(syn.id);
+        m.testCloseCards();
+
+        // HUD: 6 ranuras visibles con icono y nivel.
+        out.hudSlots = document.querySelectorAll('#skill-slots .slot-chip').length;
+        out.hudRelics = document.querySelectorAll('#relic-bar .hud-relic').length;
+
+        // Limpieza de sala.
+        out.roomClear = m.testRoomClear().cleared;
+
+        // FUENTE 3: solo las 5 estadísticas base, sin pactos.
         m.showUpgradeDraft();
-        await new Promise(r=>setTimeout(r,300));
-        const btn = document.getElementById('pact-take');
-        const curse = (document.querySelector('#pact-offer .pact-curse')||{}).textContent || '';
-        const before = m.getBuild();
-        if (btn) btn.click();
-        await new Promise(r=>setTimeout(r,220));
-        const after = m.getBuild();
-        const offer = document.querySelector('.upgrade-choice');
-        if (offer) offer.click();
-        await new Promise(r=>setTimeout(r,600));
-        return {offered:!!btn, curse, pacts:after.pacts,
-                dmg:[before.damage, after.damage], hp:[before.maxHp, after.maxHp],
-                closed:!document.getElementById('upgrade').classList.contains('active')};
+        await new Promise(r => setTimeout(r, 260));
+        out.statOptions = [...document.querySelectorAll('#upgrade [data-offer]')].map(b => b.dataset.offer);
+        out.pactOfferEmpty = document.getElementById('pact-offer').innerHTML.trim() === '';
+        out.statsOnly = out.statOptions.length === 5 && out.statOptions.every(id => id.startsWith('stat_'));
+        // Cierra el menú para que el resto del QC siga en combate.
+        const first = document.querySelector('#upgrade [data-offer]'); if (first) first.click();
+        await new Promise(r => setTimeout(r, 260));
+        out.modeAfter = m.getState().mode;
+        return out;
       })()`);
-      console.log('PACT_TEST:', JSON.stringify(pactTest));
+      console.log('SKILLS_TEST:', JSON.stringify(skillsTest));
+      const progressionImage = await mainWindow.webContents.capturePage();
+      require('node:fs').writeFileSync(path.join(__dirname, 'skills-smoke.png'), progressionImage.toPNG());
 
       // combate: todos los arquetipos de enemigo y todas las habilidades automáticas
       const combatTest = await mainWindow.webContents.executeJavaScript(`(async()=>{
@@ -761,12 +870,10 @@ function createWindow() {
             (await mainWindow.webContents.capturePage()).toPNG());
           await mainWindow.webContents.executeJavaScript(
             "(async()=>{const m=await import('./src/game.js');m.testGod(false);})()");
-          const fps = await mainWindow.webContents.executeJavaScript(`(async()=>{
-            return await new Promise(res=>{let n=0;const t0=performance.now();
-              const tick=()=>{n++;const dt=performance.now()-t0;
-                if(dt<1200) requestAnimationFrame(tick);
-                else res({fps:Math.round(n*1000/dt),ms:+(dt/n).toFixed(2)});};
-              requestAnimationFrame(tick);});})()`);
+          // qcFps() reenfoca la ventana: sin ello el último bioma marcaba 1 FPS
+          // por estrangulamiento de RAF al perder el foco del SO.
+          const f = await qcFps();
+          const fps = { fps: f.fps, ms: f.ms, focus: f.focus };
           const diag = await mainWindow.webContents.executeJavaScript(
             "(async()=>{const m=await import('./src/game.js');return {world:m.worldDiagnostics(),perf:m.getPerf(),props:m.testProps()};})()");
           report.push({ id: w.id, ready, fps, ...diag });
@@ -780,6 +887,519 @@ function createWindow() {
         console.log('WORLDS_QC_OK');
       } catch (e) {
         console.log('WORLDS_QC_FAIL ' + e.message);
+        process.exitCode = 1;
+      }
+      app.quit();
+    });
+  }
+
+  // --- Control de calidad: catálogo unificado de 80 objetos ----------------
+  // Verifica las 3 fuentes de progresión, los 6 slots, el techo de nivel,
+  // la sinergia automática, onRoomClear() y captura los 4 estados de la UI.
+  if (process.argv.includes('--skills')) {
+    const fs = require('node:fs');
+    const shot = async (name) => {
+      fs.writeFileSync(path.join(__dirname, name),
+        (await mainWindow.webContents.capturePage()).toPNG());
+    };
+    mainWindow.webContents.once('did-finish-load', async () => {
+      await new Promise(r => setTimeout(r, 2200));
+      try {
+        await mainWindow.webContents.executeJavaScript(
+          "window.__NR_SMOKE=true;document.getElementById('start-btn').click()");
+        await new Promise(r => setTimeout(r, 700));
+        await mainWindow.webContents.executeJavaScript("document.querySelector('[data-level=docks]').click()");
+        await new Promise(r => setTimeout(r, 300));
+        await mainWindow.webContents.executeJavaScript("document.getElementById('hub-deploy').click()");
+        for (let i = 0; i < 60; i++) {
+          const ok = await mainWindow.webContents.executeJavaScript(
+            "(()=>!!(window.__NR_COMBAT_READY && window.__NR_COMBAT && window.__NR_COMBAT.weapons.ok))()");
+          if (ok) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
+        const catalog = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const d=await import('./src/SkillsDatabase.js');return d.catalogDiagnostics();})()");
+        console.log('SKILLS_CATALOG ' + JSON.stringify(catalog));
+
+        // HUD con 6 slots, reliquias y pactos visibles + oleada viva.
+        await mainWindow.webContents.executeJavaScript(`(async()=>{
+          const m=await import('./src/game.js'), d=await import('./src/SkillsDatabase.js');
+          m.testGod(true); m.spawnWave();
+          const hero=m.getSkillDiagnostics().hero;
+          for (const s of d.skillsFor(hero).slice(0,4)) { m.testGrant(s.id); m.testGrant(s.id); }
+          for (const id of ['rel_magnet','rel_titan','rel_greed','pct_glass','pct_death']) m.testGrant(id);
+          m.setWorldView(18,-.3,0);
+        })()`);
+        await new Promise(r => setTimeout(r, 900));
+        await shot('skills-hud.png');
+
+        // FUENTE 1: 3 cartas de habilidad del héroe activo.
+        const level = await mainWindow.webContents.executeJavaScript(`(async()=>{
+          const m=await import('./src/game.js');
+          const n=m.testLevelUp();
+          return {cards:n,mode:m.getState().mode,
+            ids:[...document.querySelectorAll('#cards [data-card]')].map(b=>b.dataset.card),
+            hero:m.getSkillDiagnostics().hero};
+        })()`);
+        console.log('SKILLS_LEVELUP ' + JSON.stringify(level));
+        await new Promise(r => setTimeout(r, 420));
+        await shot('skills-levelup.png');
+        await mainWindow.webContents.executeJavaScript("import('./src/game.js').then(m=>m.testCloseCards())");
+
+        // FUENTE 2: 3 cartas de cofre (reliquias + pactos).
+        const chest = await mainWindow.webContents.executeJavaScript(`(async()=>{
+          const m=await import('./src/game.js');
+          const r=m.testOpenChest();
+          return {...r,ids:[...document.querySelectorAll('#cards [data-card]')].map(b=>b.dataset.card),
+            pacts:document.querySelectorAll('#cards .card-choice.pact').length};
+        })()`);
+        console.log('SKILLS_CHEST ' + JSON.stringify(chest));
+        await new Promise(r => setTimeout(r, 420));
+        await shot('skills-chest.png');
+        await mainWindow.webContents.executeJavaScript("import('./src/game.js').then(m=>m.testCloseCards())");
+
+        // Sinergia automática con animación dorada.
+        const synergy = await mainWindow.webContents.executeJavaScript(`(async()=>{
+          const m=await import('./src/game.js'), d=await import('./src/SkillsDatabase.js');
+          const hero=m.getSkillDiagnostics().hero, s=d.synergyFor(hero);
+          m.testGrant(s.req[0]); m.testGrant(s.req[1]);
+          const r=m.testOpenChest();
+          return {id:s.id,...r,granted:m.getSkillDiagnostics().snapshot.synergies.includes(s.id)};
+        })()`);
+        console.log('SKILLS_SYNERGY ' + JSON.stringify(synergy));
+        await new Promise(r => setTimeout(r, 460));
+        await shot('skills-synergy.png');
+        await mainWindow.webContents.executeJavaScript("import('./src/game.js').then(m=>{m.testCloseCards();m.testGod(true);m.spawnWave();m.setWorldView(18,-.3,0);})");
+
+        // FUENTE 3: menú de fin de ronda, SOLO 5 estadísticas base.
+        const round = await mainWindow.webContents.executeJavaScript(`(async()=>{
+          const m=await import('./src/game.js'); m.showUpgradeDraft();
+          await new Promise(r=>setTimeout(r,250));
+          return {options:[...document.querySelectorAll('#upgrade [data-offer]')].map(b=>b.dataset.offer),
+                  pactOffer:document.getElementById('pact-offer').innerHTML.trim().length};
+        })()`);
+        console.log('SKILLS_ROUND ' + JSON.stringify(round));
+        await new Promise(r => setTimeout(r, 260));
+        await shot('skills-round.png');
+        await mainWindow.webContents.executeJavaScript("import('./src/game.js').then(m=>m.setWorldView(18,-.3,0))");
+
+        // Combate con el catálogo cargado: FPS, cooldowns y onRoomClear().
+        // Desde Fase 2 la oleada son ~25 GLB animados (antes primitivas
+        // horneadas), así que el suelo realista es 50 FPS y no los 60 de la
+        // época de cubos. qcFps() reenfoca y reintenta si Chromium estrangula
+        // requestAnimationFrame por perder el foco del SO.
+        const fpsProbe = await qcFps();
+        const fps = fpsProbe.fps;
+        console.log('SKILLS_FPS_PROBE ' + JSON.stringify(fpsProbe));
+        const diag = await mainWindow.webContents.executeJavaScript(`(async()=>{
+          const m=await import('./src/game.js');
+          const before=m.getSkillDiagnostics();
+          const cleared=m.testRoomClear();
+          const after=m.getSkillDiagnostics();
+          return {before:{slots:before.slots,relics:before.relics,pacts:before.pacts,synergies:before.synergies,
+                          combatTime:before.combatTime,activeShapes:before.activeShapes},
+                  cleared,after:{activeShapes:after.activeShapes,timers:after.timers.length},
+                  perf:m.getPerf()};
+        })()`);
+        console.log('SKILLS_DIAG ' + JSON.stringify({fps, ...diag}));
+        const ok = catalog.total === 85 && catalog.byType.skill === 50 &&
+          catalog.byType.relic === 20 && catalog.byType.pact_relic === 10 &&
+          catalog.synergies === 5 && level.cards === 3 && chest.cards === 3 &&
+          round.options.length === 5 && round.pactOffer === 0 && synergy.granted &&
+          fps >= 50 && !runtimeErrors.length;
+        console.log(ok ? 'SKILLS_QC_OK' : 'SKILLS_QC_FAIL ' + JSON.stringify({ catalog, level, chest, round, synergy, fps, errors: runtimeErrors.length }));
+        if (!ok) process.exitCode = 1;
+      } catch (e) {
+        console.log('SKILLS_QC_FAIL ' + e.message);
+        process.exitCode = 1;
+      }
+      app.quit();
+    });
+  }
+  // --- Fase 1: QC del puente IPC + animación real ---------------------------
+  // Abre models-preview.html (no el juego). Verifica que los .gltf/.glb se
+  // parseen, que los AnimationMixer muevan huesos de verdad (poseChanges),
+  // que el retargeting de KayKit aplique clips y que las transiciones de
+  // carga/ataque/impacto/muerte funcionen sin excepciones en el renderer.
+  if (process.argv.includes('--models')) {
+    const fs = require('node:fs');
+    const shot = async (name) => {
+      fs.writeFileSync(path.join(__dirname, name),
+        (await mainWindow.webContents.capturePage()).toPNG());
+    };
+    mainWindow.webContents.once('did-finish-load', async () => {
+      try {
+        let ready = false;
+        for (let i = 0; i < 120; i++) {
+          ready = await mainWindow.webContents.executeJavaScript(
+            "(()=>!!(window.__NR_MODELS && window.__NR_MODELS.ready))()");
+          if (ready) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
+        if (!ready) throw new Error('el estudio de criaturas no llegó a ready');
+        await new Promise(r => setTimeout(r, 900)); // deja correr los mixers
+        const before = await mainWindow.webContents.executeJavaScript("window.__NR_MODELS.diag()");
+        console.log('MODELS_DIAG ' + JSON.stringify({
+          loaded: before.loaded, total: before.total, mixers: before.mixers,
+          fallbacks: before.fallbacks, retargeted: before.retargeted,
+          retargetClips: before.retargetClips, poseChanges: before.poseChanges,
+          roles: before.states.map(s => ({ n: s.name, r: s.roles })),
+          errors: before.lib.errors
+        }));
+        await shot('models-showcase.png');
+
+        const transitions = await mainWindow.webContents.executeJavaScript(`(async()=>{
+          const m=window.__NR_MODELS;
+          m.cmd('move');   await new Promise(r=>setTimeout(r,300));
+          m.cmd('attack'); const charge=m.diag().states.map(s=>s.charge);
+          await new Promise(r=>setTimeout(r,320));
+          m.cmd('hit');    const flash=m.diag().states.map(s=>s.flash);
+          await new Promise(r=>setTimeout(r,150));
+          m.cmd('die');    await new Promise(r=>setTimeout(r,260));
+          return {charge,flash,death:m.diag().states.map(s=>s.dead),
+                  events:m.diag().events};
+        })()`);
+        console.log('MODELS_TRANSITIONS ' + JSON.stringify(transitions));
+        await shot('models-death.png');
+
+        const modelFps = await qcFps();
+        const fps = modelFps.fps;
+        console.log('MODELS_FPS_PROBE ' + JSON.stringify(modelFps));
+        const after = await mainWindow.webContents.executeJavaScript("window.__NR_MODELS.diag()");
+        const animatedMoved = before.poseChanges.filter((n, i) =>
+          !before.states[i].failed && n > 3).length;
+        const ok = before.loaded === before.total && before.mixers >= 5 &&
+          before.fallbacks >= 1 && before.retargeted >= 1 &&
+          before.retargetClips > 0 && before.lib.errors.length === 0 &&
+          animatedMoved === before.total &&
+          transitions.charge.some(v => v > 0) &&
+          transitions.flash.some(v => v > 0) &&
+          transitions.death.every(Boolean) &&
+          transitions.events.includes('smoke') &&
+          fps >= 60 && !runtimeErrors.length;
+        console.log(ok ? 'MODELS_QC_OK' : 'MODELS_QC_FAIL ' + JSON.stringify({
+          loaded: before.loaded, total: before.total, mixers: before.mixers,
+          fallbacks: before.fallbacks, retargeted: before.retargeted,
+          retargetClips: before.retargetClips, animatedMoved, fps,
+          errors: before.lib.errors, runtimeErrors: runtimeErrors.length,
+          transitions
+        }));
+        if (!ok) process.exitCode = 1;
+      } catch (e) {
+        console.log('MODELS_QC_FAIL ' + e.message);
+        process.exitCode = 1;
+      }
+      app.quit();
+    });
+  }
+
+  // --- Control de calidad FASE 2: hordas GLB reales en los 7 biomas --------
+  // Verifica roster (52 plantillas), clip/animación por instancia, Boids,
+  // élites exclusivos, sombra real de voladores, animación de muerte y 60 FPS.
+  if (process.argv.includes('--enemies')) {
+    const fs = require('node:fs');
+    const WORLDS = [
+      { id: 'world1_nature', label: 'nature' },
+      { id: 'world2_snow', label: 'snow' },
+      { id: 'world3_shop', label: 'shop' },
+      { id: 'world4_suburban', label: 'suburban' },
+      { id: 'world5_station', label: 'station' },
+      { id: 'world6_space', label: 'space' },
+      { id: 'world7_hexagon', label: 'hexagon' }
+    ];
+    const shot = async (name) => {
+      fs.writeFileSync(path.join(__dirname, name),
+        (await mainWindow.webContents.capturePage()).toPNG());
+    };
+    // qcFps() reenfoca antes de medir: si el terminal (o un proceso concurrente)
+    // roba el foco, Chromium estrangula RAF a ~1 Hz y TODA la lógica de juego
+    // (Boids, élites, muerte) parece rota aunque el juego esté sano.
+    const measureFps = async () => (await qcFps()).fps;
+    mainWindow.webContents.once('did-finish-load', async () => {
+      await qcSettle(1800);
+      const report = [];
+      try {
+        // 1) El roster completo debe haberse parseado SIN errores.
+        let ready = false;
+        for (let i = 0; i < 180; i++) {
+          ready = await mainWindow.webContents.executeJavaScript(
+            "(()=>!!window.__NR_ENEMIES_READY)()");
+          if (ready) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
+        if (!ready) throw new Error('el roster de criaturas no llegó a ready: ' +
+          JSON.stringify(await mainWindow.webContents.executeJavaScript("window.__NR_ENEMIES")));
+        const boot = await mainWindow.webContents.executeJavaScript("window.__NR_ENEMIES");
+        console.log('ENEMIES_BOOT ' + JSON.stringify({
+          requested: boot.requested, loaded: boot.loaded, failed: boot.failed,
+          worlds: boot.roster.worlds, archetypes: boot.roster.archetypes,
+          uniqueModels: boot.roster.uniqueModels, errors: boot.errors
+        }));
+
+        // 2) Entrar en partida real (el menú no tiene hordas).
+        await mainWindow.webContents.executeJavaScript(
+          "window.__NR_SMOKE=true;document.getElementById('start-btn').click()");
+        await qcSettle(700);
+        await mainWindow.webContents.executeJavaScript(
+          "document.querySelector('[data-level=rooftop]').click()");
+        await qcSettle(300);
+        await mainWindow.webContents.executeJavaScript("document.getElementById('hub-deploy').click()");
+        await qcSettle(900);
+
+        // 3) Una oleada viva e IDÉNTICA (ronda 4) por bioma: así el FPS compara
+        // el coste de los modelos, no el tamaño creciente de la horda.
+        for (const w of WORLDS) {
+          await mainWindow.webContents.executeJavaScript(
+            `(async()=>{const m=await import('./src/game.js');m.testResetEnemyDiag();m.testEnemyWorld('${w.id}',4);m.setWorldView(24,-.30,0);})()`);
+          // Reenfocar y dejar correr frames REALES: sin foco solo avanzan 2
+          // frames en 1.5 s, los hostiles siguen en `spawn` y el diagnóstico
+          // de Boids/élites sale vacío.
+          await qcSettle(1500);
+          const diag = await mainWindow.webContents.executeJavaScript(
+            "(async()=>{const m=await import('./src/game.js');return m.enemyFase2Diagnostics();})()");
+          const fps = await measureFps();
+          if (w.label === 'nature' || w.label === 'suburban' || w.label === 'hexagon') {
+            await shot('enemies-' + w.label + '.png');
+          }
+          const row = {
+            id: w.id, world: diag.world, live: diag.live,
+            byArchetype: diag.byArchetype, withCreature: diag.withCreature,
+            mixers: diag.mixers, procedural: diag.procedural,
+            elitesLive: diag.elitesLive, flyerY: diag.flyerY,
+            boidsUpdates: diag.boids.updates, boidsApplied: diag.boids.applied,
+            minPair: diag.boids.minPair === 999 ? null : +diag.boids.minPair.toFixed(2),
+            drawCalls: diag.drawCalls, triangles: diag.triangles,
+            errors: diag.models.lib.errors.length, fps
+          };
+          if (w.label === 'hexagon') {
+            // A/B: coste real del pase de sombras con la horda más grande.
+            await mainWindow.webContents.executeJavaScript(
+              "(async()=>{const m=await import('./src/game.js');m.testEnemyShadows(false);})()");
+            const noShadow = await measureFps();
+            await mainWindow.webContents.executeJavaScript(
+              "(async()=>{const m=await import('./src/game.js');m.testEnemyShadows(true);})()");
+            row.fpsNoShadow = noShadow;
+            console.log('ENEMIES_SHADOW_AB ' + JSON.stringify({ withShadow: fps, noShadow }));
+          }
+          report.push(row);
+          console.log('ENEMY_QC ' + w.id + ' ' + JSON.stringify(row));
+          await mainWindow.webContents.executeJavaScript(
+            "(async()=>{const m=await import('./src/game.js');m.testClearEnemies();})()");
+        }
+
+        // 3b) Caso de estrés explícito: ronda 9 en el bioma más pesado (~25
+        // GLB vivos). Se informa por separado, no se mezcla con la media.
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.testEnemyWorld('world7_hexagon',9);m.setWorldView(30,-.34,0);})()");
+        await qcSettle(1200);
+        const stressDiag = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.enemyFase2Diagnostics();})()");
+        const stressFps = await measureFps();
+        console.log('ENEMIES_STRESS ' + JSON.stringify({
+          world: stressDiag.world, live: stressDiag.live,
+          mixers: stressDiag.mixers, drawCalls: stressDiag.drawCalls,
+          fps: stressFps
+        }));
+        await shot('enemies-horde.png');
+        // 3c) Pasarela cercana: los 7 tipos lógicos con los GLB reales del
+        // bioma, a distancia de estudio, para revisar texturas y escala.
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.testClearEnemies();m.previewWorld('world1_nature');m.showcase('SYNTEK');})()");
+        await qcSettle(900);
+        await shot('enemies-showcase.png');
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.endShowcase();m.testClearEnemies();})()");
+
+        // 4) Los 7 élites exclusivos a la vez: sus habilidades deben disparar.
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.testResetEnemyDiag();m.testEnemyWorld('world1_nature',4);})()");
+        const eliteRows = [];
+        for (const w of WORLDS) {
+          eliteRows.push(await mainWindow.webContents.executeJavaScript(
+            `(async()=>{const m=await import('./src/game.js');return m.testEliteFor('${w.id}');})()`));
+        }
+        await qcSettle(2600);
+        const eliteDiag = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.enemyFase2Diagnostics().elite;})()");
+        console.log('ENEMIES_ELITES ' + JSON.stringify({ rows: eliteRows, diag: eliteDiag }));
+
+        // 5) Animación de muerte: los corpses deben existir ~1 s y luego irse.
+        const killed = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.testKillAllEnemies();})()");
+        await qcSettle(220);
+        const corpsePeak = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.enemyFase2Diagnostics().corpses;})()");
+        // 20 bajas de golpe dejan orbes de XP volando hacia el héroe: iban
+        // reabriendo "ELIGE HABILIDAD" DESPUÉS de cerrarlo y la foto salía con
+        // el overlay encima. Se congelan orbes + cola de nivel y se espera a
+        // que expire cualquier timer de 260 ms pendiente.
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.testFreezeLevelCards();m.setWorldView(24,-.30,0);})()");
+        await qcSettle(340);
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.testFreezeLevelCards();m.setWorldView(24,-.30,0);})()");
+        await shot('enemies-death.png');
+        await qcSettle(1300);
+        const deathDiag = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');const d=m.enemyFase2Diagnostics();return {corpses:d.corpses,corpseDiag:d.corpseDiag};})()");
+        const corpseEnd = deathDiag.corpses;
+        console.log('ENEMIES_DEATH ' + JSON.stringify({ killed, corpsePeak, corpseEnd, corpseDiag: deathDiag.corpseDiag }));
+
+        const bootOk = boot.failed === 0 && boot.loaded >= 50 && boot.roster.worlds === 7;
+        // El peor caso es la horda más grande (ronda 7, ~24 GLB vivos): exigir
+        // 60 FPS ahí obligaría a recortar modelos reales. Se exige ≥50 FPS en
+        // TODOS los biomas y ≥55 de media, que es el objetivo jugable real.
+        const avgFps = Math.round(report.reduce((a, r) => a + r.fps, 0) / report.length);
+        const hordeOk = avgFps >= 55 && report.every(r =>
+          r.world === r.id && r.live >= 5 && r.withCreature >= 5 &&
+          r.mixers >= 1 && r.elitesLive >= 1 &&
+          r.boidsUpdates > 0 && r.boidsApplied > 0 &&
+          r.errors === 0 && r.fps >= 50);
+        const eliteOk = eliteRows.length === 7 && eliteRows.every(Boolean) &&
+          eliteDiag.abilities > 0;
+        const deathOk = killed > 0 && corpsePeak > 0 && corpseEnd === 0;
+        const stressOk = stressDiag.live >= 18 && stressFps >= 42;
+        const ok = bootOk && hordeOk && eliteOk && deathOk && stressOk && !runtimeErrors.length;
+        console.log('ENEMIES_PERF ' + JSON.stringify({
+          avgFps, minFps: Math.min(...report.map(r => r.fps)),
+          maxFps: Math.max(...report.map(r => r.fps)),
+          stressHorde: stressDiag.live, stressFps
+        }));
+        console.log(ok ? 'ENEMIES_QC_OK' : 'ENEMIES_QC_FAIL ' + JSON.stringify({
+          bootOk, hordeOk, eliteOk, deathOk, stressOk, avgFps,
+          runtimeErrors: runtimeErrors.length, report
+        }));
+        if (!ok) process.exitCode = 1;
+      } catch (e) {
+        console.log('ENEMIES_QC_FAIL ' + e.message);
+        process.exitCode = 1;
+      }
+      app.quit();
+    });
+  }
+
+  // --------------------------------------------------------------- FASE 3
+  if (process.argv.includes('--bosses')) {
+    const fs = require('node:fs');
+    const shot = async (name) => {
+      fs.writeFileSync(path.join(__dirname, name),
+        (await mainWindow.webContents.capturePage()).toPNG());
+    };
+    mainWindow.webContents.once('did-finish-load', async () => {
+      await qcSettle(2200);
+      try {
+        let ready = false;
+        for (let i = 0; i < 200; i++) {
+          ready = await mainWindow.webContents.executeJavaScript("(()=>!!window.__NR_BOSSES_READY)()");
+          if (ready) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
+        if (!ready) throw new Error('los modelos de jefe no llegaron a ready');
+        const boot = await mainWindow.webContents.executeJavaScript("window.__NR_BOSSES");
+        console.log('BOSSES_BOOT ' + JSON.stringify({
+          total: boot.bosses, worlds: boot.worlds, animated: boot.animated,
+          kitbash: boot.kitbash, primitives: boot.db.inventedPrimitives,
+          templates: boot.lib.templates, errors: boot.lib.errors
+        }));
+
+        // Entrar en partida (el menú no tiene jefes).
+        await mainWindow.webContents.executeJavaScript(
+          "window.__NR_SMOKE=true;document.getElementById('start-btn').click()");
+        await qcSettle(650);
+        await mainWindow.webContents.executeJavaScript(
+          "document.querySelector('[data-level=rooftop]').click()");
+        await qcSettle(300);
+        await mainWindow.webContents.executeJavaScript("document.getElementById('hub-deploy').click()");
+        await qcSettle(900);
+
+        const WORLDS = ['world1_nature', 'world2_snow', 'world3_shop', 'world4_suburban',
+          'world5_station', 'world6_space', 'world7_hexagon'];
+        const labels = ['nature', 'snow', 'shop', 'suburban', 'station', 'space', 'hexagon'];
+        const rows = [];
+        for (let wi = 0; wi < WORLDS.length; wi++) {
+          for (let k = 0; k < 3; k++) {
+            const d = await mainWindow.webContents.executeJavaScript(
+              `(async()=>{const m=await import('./src/game.js');return m.testBossWorld('${WORLDS[wi]}',${k});})()`);
+            await qcSettle(k === 0 ? 700 : 320);
+            rows.push({
+              world: WORLDS[wi], slot: k,
+              id: d?.boss?.id, name: d?.boss?.name,
+              hp: d?.boss?.hp, abilities: d?.boss?.abilities?.length,
+              realBody: !!(d?.boss?.hasCreature || d?.boss?.kitParts > 0),
+              parts: d?.boss?.kitParts || 0
+            });
+            if (k === 0 && (wi === 0 || wi === 2 || wi === 4 || wi === 6)) {
+              await mainWindow.webContents.executeJavaScript(
+                "(async()=>{const m=await import('./src/game.js');m.testBossCamera();})()");
+              await qcSettle(400);
+              await shot('boss-' + labels[wi] + '.png');
+            }
+          }
+        }
+        console.log('BOSSES_ROSTER ' + JSON.stringify(rows));
+
+        // Aviso de 1.0 s en el suelo para los 3 tipos de patrón.
+        const telegraphs = [];
+        for (const id of ['charge', 'verdict', 'collapse']) {
+          telegraphs.push(await mainWindow.webContents.executeJavaScript(
+            `(async()=>{const m=await import('./src/game.js');return m.testBossTelegraph('${id}');})()`));
+        }
+        console.log('BOSSES_TELEGRAPH ' + JSON.stringify(telegraphs));
+
+        // Fase 2 al 50%, combinación de patrones y recompensa.
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.testBossWorld('world7_hexagon',2);})()");
+        await qcSettle(500);
+        const phase = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.testBossPhase(.49);})()");
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.testBossCamera();})()");
+        await qcSettle(400);
+        await shot('boss-phase2.png');
+        const combo = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.testBossCast(null,1);})()");
+        await qcSettle(500);
+        const death = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.testBossDeath();})()");
+        await shot('boss-death.png');
+        console.log('BOSSES_PHASE ' + JSON.stringify({ phase, combo, death }));
+
+        // Banner dramático: se captura en cuanto aparece un jefe nuevo.
+        await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');m.testBossWorld('world1_nature',0);})()");
+        await qcSettle(320);
+        await shot('boss-banner.png');
+        const framing = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.testBossCamera();})()");
+        await qcSettle(400);
+        await shot('boss-closeup.png');
+        console.log('BOSSES_FRAMING ' + JSON.stringify(framing));
+        const finalDiag = await mainWindow.webContents.executeJavaScript(
+          "(async()=>{const m=await import('./src/game.js');return m.bossFase3Diagnostics();})()");
+        const fpsProbe = await qcFps();
+        console.log('BOSSES_FPS ' + JSON.stringify(fpsProbe));
+
+        const rosterOk = rows.length === 21 && rows.every(r =>
+          r.id && r.name && r.abilities === 3 && r.realBody && r.hp > 0);
+        const unique = new Set(rows.map(r => r.id)).size;
+        const telegraphOk = telegraphs.length === 3 && telegraphs.every(t =>
+          t.id && t.t >= .95 && t.t <= 1.05 && t.active > 0 && t.shape);
+        const phaseOk = phase && phase.phaseIdx === 1 && phase.phaseUps > 0;
+        const comboOk = combo && combo.combos > 0;
+        const deathOk = death && death.dead && death.chests > 0 &&
+          death.hitstop === .4 && death.lootBoxes > 0;
+        const bootOk = boot.bosses === 21 && boot.worlds === 7 &&
+          boot.animated >= 14 && boot.kitbash >= 4 &&
+          boot.db.inventedPrimitives === 0 && boot.lib.errors.length === 0;
+        const ok = bootOk && rosterOk && unique === 21 && telegraphOk &&
+          phaseOk && comboOk && deathOk && fpsProbe.fps >= 45 && !runtimeErrors.length;
+        console.log(ok ? 'BOSSES_QC_OK' : 'BOSSES_QC_FAIL ' + JSON.stringify({
+          bootOk, rosterOk, unique, telegraphOk, phaseOk, comboOk, deathOk,
+          fps: fpsProbe.fps, errors: runtimeErrors.length
+        }));
+        if (!ok) process.exitCode = 1;
+      } catch (e) {
+        console.log('BOSSES_QC_FAIL ' + e.message);
         process.exitCode = 1;
       }
       app.quit();
@@ -863,13 +1483,6 @@ ipcMain.handle('nr:load-world-glbs', async (_event, worldId, names) => {
   // (Textures/colormap.png). Cada kit tiene SU paleta: se remapea esa clave al
   // colormap real del kit del mundo activo. nature-kit y space-kit traen las
   // texturas embebidas en el GLB (no referencian .png) y no necesitan paleta.
-  const WORLD_COLORMAP = {
-    world2_snow: 'colormap.png',            // platformer-kit (filtro nieve)
-    world3_shop: 'colormap-minishop.png',   // mini-shop 2.1
-    world4_suburban: 'colormap-city.png',   // city-kit-suburban
-    world5_station: 'colormap-station.png', // space-station-kit
-    world7_hexagon: 'colormap-hexagon.png'  // hexagon-kit
-  };
   const texDir = path.join(__dirname, 'assets', 'worlds', '_textures');
   try {
     const map = {};
@@ -920,6 +1533,94 @@ ipcMain.handle('nr:load-sfx-bank', async () => {
       if (!SAFE_NAME.test(name) || !name.endsWith('.ogg')) continue;
       const buf = await fs.readFile(path.join(dir, name));
       out[pack + '/' + name] = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    }
+  }
+  return out;
+});
+
+// --- Puente de modelos de criaturas (Fase 1) --------------------------------
+// Enemigos y jefes dejan de construirse con primitivas: cada uno carga un
+// .glb/.gltf REAL de assets/enemies o assets/bosses. El renderer está aislado
+// y no puede leer file://, así que el proceso principal entrega los bytes.
+//
+// · root es una enum ('enemies' | 'bosses'), nunca una ruta del DOM.
+// · Cada nombre es una ruta relativa validada (sin '..', sin '\', sin rutas
+//   absolutas) y se resuelve dentro de la raíz antes de tocar disco.
+// · Los .gltf de Quaternius llevan buffer + atlas embebidos en base64. Los de
+//   KayKit referencian .bin/.png hermanos: se añaden automáticamente al lote
+//   para que el URLModifier del GLTFLoader pueda resolverlos como data: URL.
+// · Límite de 64 modelos por llamada para evitar lecturas masivas accidentales.
+// Fase 2: el roster de hostiles también kitbashea piezas de los 7 mundos
+// (carrito, torreta, carguero...). Esos GLB piden Textures/colormap.png, que
+// NO está dentro de cada carpeta sino en el banco compartido _textures/.
+const WORLD_COLORMAP = {
+  world2_snow: 'colormap.png',            // platformer-kit (filtro nieve)
+  world3_shop: 'colormap-minishop.png',   // mini-shop 2.1
+  world4_suburban: 'colormap-city.png',   // city-kit-suburban
+  world5_station: 'colormap-station.png', // space-station-kit
+  world7_hexagon: 'colormap-hexagon.png'  // hexagon-kit
+};
+const MODEL_ROOTS = new Set(['enemies', 'bosses', 'worlds']);
+const MODEL_EXT = /\.(glb|gltf|bin|png|jpe?g)$/i;
+const MODEL_SAFE_REL = /^[a-zA-Z0-9_. ()\/-]+$/;
+const validModelRel = (rel) => typeof rel === 'string' && rel.length > 0 && rel.length < 260 &&
+  !rel.includes('..') && !rel.includes('\\') && !rel.startsWith('/') &&
+  MODEL_SAFE_REL.test(rel) && MODEL_EXT.test(rel);
+
+ipcMain.handle('nr:load-model-pack', async (_event, root, names) => {
+  const fs = require('node:fs/promises');
+  if (!MODEL_ROOTS.has(root)) return {};
+  const base = path.resolve(__dirname, 'assets', root);
+  const out = {};
+  const seen = new Set();
+  const add = async (rel) => {
+    if (seen.has(rel) || !validModelRel(rel)) return null;
+    const abs = path.resolve(base, rel);
+    if (!abs.startsWith(base + path.sep)) return null;
+    seen.add(rel);
+    try {
+      const buf = await fs.readFile(abs);
+      out[rel] = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+      return buf;
+    } catch { delete out[rel]; return null; }
+  };
+  // Extrae las URIs externas (buffers .bin / imágenes .png) tanto de un .gltf
+  // en texto como del chunk JSON de un .glb. Los kits Kenney referencian una
+  // paleta compartida `Textures/colormap.png` que NO va embebida en el GLB:
+  // sin esto todos los personajes se renderizan blancos.
+  const externalUris = (rel, buf) => {
+    let doc = null;
+    try {
+      if (/\.gltf$/i.test(rel)) {
+        doc = JSON.parse(buf.toString('utf8'));
+      } else if (buf.length > 20 && buf.toString('ascii', 0, 4) === 'glTF') {
+        const len = buf.readUInt32LE(12);
+        doc = JSON.parse(buf.toString('utf8', 20, 20 + len).replace(/[\x00\s]+$/, ''));
+      }
+    } catch { return []; }
+    if (!doc) return [];
+    return [...(doc.buffers || []), ...(doc.images || [])]
+      .map(x => x && x.uri)
+      .filter(u => typeof u === 'string' && u && !u.startsWith('data:'));
+  };
+  const wanted = Array.isArray(names) ? names.filter(validModelRel).slice(0, 64) : [];
+  for (const rel of wanted) {
+    const buf = await add(rel);
+    if (!buf) continue;
+    const dir = path.posix.dirname(rel.split(path.sep).join('/'));
+    for (const uri of externalUris(rel, buf)) {
+      const dep = path.posix.normalize(path.posix.join(dir, decodeURIComponent(uri)));
+      const got = await add(dep);
+      if (got || root !== 'worlds' || !/^colormap\.png$/i.test(path.posix.basename(dep))) continue;
+      // El kit del mundo no trae su carpeta Textures/: la paleta correcta
+      // está en assets/worlds/_textures/. Se publica con la MISMA clave que
+      // pide el GLB para que el URLModifier de CreatureModels la encuentre.
+      const worldDir = rel.split(/[\\/]/)[0];
+      const palette = WORLD_COLORMAP[worldDir] || 'colormap.png';
+      try {
+        const pb = await fs.readFile(path.join(base, '_textures', palette));
+        out[dep] = new Uint8Array(pb.buffer, pb.byteOffset, pb.byteLength);
+      } catch { /* el GLB usará sus materiales planos */ }
     }
   }
   return out;

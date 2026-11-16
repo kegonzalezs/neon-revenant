@@ -20,7 +20,18 @@ const _v = new THREE.Vector3();
 const _scale = new THREE.Vector3();
 const _col = new THREE.Color();
 
-const USED = new Set(['circle_01.png']);
+// Sprites del catálogo unificado (SkillsDatabase.PARTICLES). Se registran
+// aquí para que el pool de InstancedMesh los precargue una sola vez y el
+// SkillManager pueda emitirlos sin crear texturas en mitad del combate.
+const UNIFIED_SPRITES = [
+  // magic_03.png la usan los élites de bioma (Chamán / Escarcha) en Fase 2.
+  'circle_05.png', 'magic_01.png', 'magic_03.png', 'twirl_01.png',
+  'slash_01.png', 'slash_02.png', 'slash_03.png',
+  'spark_01.png', 'spark_02.png', 'spark_03.png',
+  'spark_04.png', 'spark_05.png', 'spark_06.png',
+  'smoke_07.png', 'star_04.png', 'flame_01.png'
+];
+const USED = new Set(['circle_01.png', ...UNIFIED_SPRITES]);
 for (const def of Object.values(WEAPON_DEFS)) {
   const f = def.vfx || {};
   for (const key of ['flash', 'trail', 'impact', 'wave', 'smoke', 'melee', 'hit']) {
@@ -122,6 +133,11 @@ export class CombatParticles {
     }
     window.__NR_VFX = this.diag;
     return this.diag;
+  }
+
+  /** Textura real de /assets/vfx/particles para los avisos de jefe (1 s). */
+  getSpriteTexture(name) {
+    return this.pools.get(name)?.mesh?.material?.map || null;
   }
 
   emit(name, pos, o = {}) {

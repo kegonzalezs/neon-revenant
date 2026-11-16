@@ -634,7 +634,19 @@
       <div class="chips-box"><small>MONEDAS</small><b id="chips">0</b></div>
       <button id="hud-menu-btn" class="hud-btn">☰ MENÚ <kbd>ESC</kbd></button>
     </header>
-    <div id="boss-wrap" class="hidden"><span id="boss-name">GUARDIÁN // SEÑOR DEL REINO</span><div><i id="boss-health"></i></div></div>
+    <!-- Progresión unificada: XP, 6 ranuras de habilidad y barra de botín -->
+    <div class="skill-hud">
+      <div class="skill-hud-row">
+        <div class="xp-box"><span id="xp-level">NVL 01</span>
+          <div class="xp-track"><i id="xp-fill"></i></div>
+          <small id="xp-text">0 / 12</small>
+        </div>
+        <div class="slots-box"><small>HABILIDADES</small><div id="skill-slots"></div></div>
+      </div>
+      <div id="relic-bar"></div>
+    </div>
+    <div id="boss-banner"><small data-world>SECTOR</small><b data-name>JEFE</b><span data-title>TÍTULO</span></div>
+    <div id="boss-wrap" class="hidden"><span id="boss-name">GUARDIÁN // SEÑOR DEL REINO</span><div><i id="boss-health"></i></div><small id="boss-phase">FASE 1</small></div>
     <div id="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
     <div id="hitmarker">×</div>
     <div id="killfeed"></div>
@@ -677,17 +689,32 @@
     </div>
   </section>
 
-  <section id="loot" class="screen overlay">
-    <div class="loot-modal">
-      <div class="eyebrow">// COFRE DE SUMINISTROS</div>
-      <div class="loot-icon" id="loot-icon">✧</div>
-      <div class="loot-kind" id="loot-kind">HABILIDAD ESPECIAL</div>
-      <h2 id="loot-name">MASCOTA WRAITH</h2>
-      <div class="loot-sub" id="loot-sub">PERMANENTE</div>
-      <p class="loot-desc" id="loot-desc"></p>
-      <div class="loot-how"><small>CÓMO FUNCIONA</small><span id="loot-how"></span></div>
-      <div class="loot-synergy hidden" id="loot-synergy"><small>SINERGIA</small><b id="loot-synergy-name"></b><span id="loot-synergy-desc"></span></div>
-      <button id="loot-equip-btn" class="primary"><span>EQUIPAR Y SEGUIR</span><b>↗</b></button>
+  <!-- Pantalla de botín de objeto único: RETIRADA. El cofre ahora abre 3
+       cartas (#cards) o concede la sinergia (#synergy-reveal). -->
+
+
+  <!-- FUENTE 1 y 2: tres cartas (habilidades al subir de nivel, reliquias y
+       pactos al abrir un cofre). Un mismo overlay, borde teñido por rareza. -->
+  <section id="cards" class="screen overlay">
+    <div class="cards-modal">
+      <div class="eyebrow" id="cards-eyebrow">// SUBIDA DE NIVEL</div>
+      <h2 id="cards-title">ELIGE HABILIDAD</h2>
+      <p id="cards-sub"></p>
+      <div id="cards-options"></div>
+      <div class="cards-foot"><span id="cards-slots"></span><span>PAUSA TÁCTICA // ELIGE UNA CARTA</span></div>
+    </div>
+  </section>
+
+  <!-- Sinergia automática del cofre: animación dorada de un solo disparo -->
+  <section id="synergy-reveal" class="screen overlay">
+    <div class="syn-modal">
+      <div class="syn-rays"></div>
+      <div class="syn-icon" id="syn-icon"></div>
+      <div class="eyebrow">// EVOLUCIÓN DESBLOQUEADA</div>
+      <h2 id="syn-name">SINERGIA</h2>
+      <p id="syn-desc"></p>
+      <div class="syn-req" id="syn-req"></div>
+      <button id="syn-continue" class="primary"><span>CONTINUAR</span><b>↗</b></button>
     </div>
   </section>
 

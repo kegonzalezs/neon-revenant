@@ -7,13 +7,24 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { CHARACTERS, ABILITIES, BOOSTS, UPGRADES, LEVELS, SLOTS, SYNERGIES, MODIFIERS, DIFFICULTIES, LEVEL_ART, ROUNDS, roundLabel, UTILITY, OBJECTIVES, ACHIEVEMENTS, ENEMY_CODEX } from './content.js';
 import { FAMILIES, MODULES, RESONANCES, EVOLUTIONS, ABILITY_EVOLUTIONS, abilityEvolution, AFFIXES, PACTS, RELICS, relicById, THREAT, moduleById, affixById } from './arsenal.js';
+// --- Progresión unificada: 80 objetos, 5 sinergias, 3 fuentes de recompensa ---
+// content.js / arsenal.js conservan sus datos sólo como ARCHIVO para el códice:
+// ningún menú de la partida vuelve a ofrecer habilidades, módulos ni pactos
+// antiguos. La única fuente de verdad es SkillsDatabase.js + SkillManager.js.
+import { SkillManager } from './SkillManager.js';
+import { svgIcon } from './skill-icons.js';
+import { STAT_UPGRADES, HERO_THEME, RARITY, itemById, catalogDiagnostics } from './SkillsDatabase.js';
 import { buildEnvironment } from './props.js';
 import { buildWorld, worldArt, updateWorld } from './worlds.js';
 // Arquitectura modular de los 7 mundos Kenney. Fase QC: solo 1 y 2 construidos;
 // los 5 restantes usan TEMPORALMENTE el builder voxel como fallback.
 import { WorldManager } from './WorldManager.js';
 import { COMFORT, artForLevel, worldIdForLevel } from './worlds/registry.js';
-import { BOSSES, BOSS_ABILITIES, bossFor, buildBossMesh } from './bosses.js';
+import {
+  BOSSES, WORLD_BOSSES, BOSS_ABILITIES, bossFor, buildBossMesh, randomBossForWorld,
+  allBossSpecs, bossDiagnostics as bossDbDiagnostics, bossModelDiagnostics,
+  setBossEventHandler, animateBossKitbash
+} from './bosses.js';
 import * as Meta from './meta.js';
 import { MusicEngine } from './music.js';
 import { FX } from './fx.js';
@@ -40,7 +51,21 @@ import { FxPool } from './particles.js';
 import { makeFacadeBank } from './facades.js';
 import { renderCodex, codexSummary } from './codex.js';
 import { CinematicPass } from './cinematic.js';
-import { buildEnemyModel, buildEliteCrown } from './enemies.js';
+import {
+  buildEnemyModel, buildEliteCrown, allEnemySpecs,
+  initEnemyShadows, enemyModelDiagnostics,
+  setCreatureEventHandler, disposeEnemyCache
+} from './enemies.js';
+// --- Fase 2: hostiles con modelos GLB reales, Boids y élites por bioma -------
+import { preloadCreatureRoster, creatureDiagnostics, getCreatureTemplateSync } from './CreatureModels.js';
+import {
+  specForEnemy, archetypeForType, eliteForWorld, rosterDiagnostics
+} from './EnemyRoster.js';
+import { applyBoids, boidsDiagnostics, resetBoidsDiagnostics } from './EnemyBoids.js';
+import {
+  tickWorldElite, onWorldEliteDeath, eliteDiagnostics,
+  resetEliteDiagnostics, ELITE_DEFS
+} from './WorldElites.js';
 
 const $ = (id) => document.getElementById(id);
 const fx = new FX();
@@ -91,6 +116,106 @@ let seed = 20260728;
 const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 function reseed(value) { seed = (Math.abs(Math.floor(value)) % 2147483646) || 1; }
 const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+
+// ===========================================================================
+// FASE 2 — hostiles con modelos GLB reales, Boids y élites por bioma.
+// `enemyWorldId` lo fija applyLevel(): cada oleada usa el roster de su mundo.
+// ===========================================================================
+let enemyWorldId = 'world1_nature';
+let enemyVariant = 0;
+let creatureBoot = null;
+let enemiesReady = false;
+let creatureFrame = 0;        // paridad para el LOD de mixers lejanos
+const creatureCorpses = [];   // cadáveres con animación de muerte, se reciclan
+const _creatureP = new THREE.Vector3(), _creatureQ = new THREE.Quaternion(), _creatureS = new THREE.Vector3();
+
+// API que WorldElites.js recibe inyectada: así el módulo no conoce el estado
+// global y puede probarse por separado. Todo pasa por sistemas YA existentes.
+const ELITE_API = {
+  THREE,
+  get player() { return player; },
+  get enemies() { return enemies; },
+  get state() { return state; },
+  get faction() { return currentLevel.faction; },
+  rnd,
+  emit(name, pos, o) { combatParticles?.emit(name, pos, o); },
+  sfx(name, o) { playSfx(name, o || {}); },
+  hurt(amount, src) { hurt(amount, src); },
+  slowPlayer(t, factor) {
+    state.slowT = Math.max(state.slowT || 0, t);
+    state.slowFactor = Math.min(state.slowFactor || 1, factor);
+  },
+  hazard(pos, kind, o) { spawnHazard(pos, kind, o || {}); },
+  explode(pos, radius, dmg, color) { explode(pos, radius, dmg, color); },
+  damageEnemy(e, dmg, head) { if (e && !e.dead) damageEnemy(e, dmg, head); },
+  createEnemy(type, x, z, elite, faction) {
+    return createEnemy(type, x, z, !!elite, faction || currentLevel.faction);
+  },
+  announce(text) { announce(text); },
+  spawnBurst(pos, color, count, power) { spawnBurst(pos, color, count, power); }
+};
+
+/** Retira el visual del hostil y lo deja en la escena para que reproduzca su
+ *  clip de muerte (o encogimiento) antes de devolverlo al pool. El grupo lógico
+ *  se puede destruir ya: la oleada no espera a la animación. */
+/** Libera TODOS los CreatureVisual de un hostil (el cuerpo y la corona GLB
+ *  de élite), incluidos sus AnimationMixer. Se usa al limpiar la partida. */
+function disposeEnemyVisuals(e) {
+  const list = [];
+  e.group.traverse(o => { if (o.userData?.creature) list.push(o.userData.creature); });
+  for (const cv of list) cv.dispose();
+}
+function retireCreature(e) {
+  const cv = e.creature;
+  // La corona de élite también es un CreatureVisual: se recoge ANTES de mutar
+  // el árbol (remove() dentro de traverse() saltaría hermanos) y se libera ya.
+  const extras = [];
+  e.group.traverse(o => {
+    const other = o.userData?.creature;
+    if (other && other !== cv) extras.push(other);
+  });
+  for (const other of extras) { other.dead = true; other.hidden = true; other.dispose(); }
+  if (!cv) return;
+  cv.root.updateWorldMatrix(true, false);
+  cv.root.matrixWorld.decompose(_creatureP, _creatureQ, _creatureS);
+  if (cv.root.parent) cv.root.parent.remove(cv.root);
+  scene.add(cv.root);
+  cv.root.position.copy(_creatureP);
+  cv.root.quaternion.copy(_creatureQ);
+  cv.root.scale.copy(_creatureS);
+  cv.baseScale = _creatureS.x || cv.baseScale;
+  cv.baseY = _creatureP.y;
+  e.group.userData.creature = null;
+  cv.die();
+  // Plazo en tiempo ABSOLUTO contado desde el PRIMER FRAME que lo renderiza:
+  // matar 30 hostiles de golpe es síncrono y puede tardar >1 s, así que si el
+  // reloj arrancara aquí los primeros cadáveres nacerían ya caducados.
+  // (Acumular dt tampoco sirve: el hitstop lo deja en 0 durante las ráfagas.)
+  creatureCorpses.push({ cv, born: 0 });
+  corpseDiag.pushed++;
+}
+const corpseDiag = { ticks: 0, pushed: 0, disposed: 0, errors: 0, maxAge: 0 };
+function updateCreatureCorpses(dt) {
+  corpseDiag.ticks++;
+  const now = performance.now();
+  for (let i = creatureCorpses.length - 1; i >= 0; i--) {
+    const c = creatureCorpses[i];
+    if (!c.born) c.born = now;   // arranca en su primer frame visible
+    const age = (now - c.born) / 1000;
+    if (age > corpseDiag.maxAge) corpseDiag.maxAge = +age.toFixed(2);
+    // Un VFX roto nunca debe dejar cadáveres eternos ni tumbar el bucle.
+    try { c.cv.update(dt, {}); } catch { corpseDiag.errors++; }
+    if (age >= 1.05 || c.cv.hidden) {
+      try { c.cv.dispose(); } catch { corpseDiag.errors++; }
+      creatureCorpses.splice(i, 1);
+      corpseDiag.disposed++;
+    }
+  }
+}
+function clearCreatureCorpses() {
+  for (const c of creatureCorpses) { try { c.cv.dispose(); } catch { corpseDiag.errors++; } }
+  creatureCorpses.length = 0;
+}
 
 // ---------------------------------------------------------------- render
 const scene = new THREE.Scene();
@@ -317,6 +442,9 @@ function rbox(parent, size, pos, material = solid, radius = 0.035, segments = 2)
 }
 function applyLevel() {
   const l = currentLevel;
+  // Fase 2: el roster de hostiles sigue SIEMPRE al bioma activo, tanto en
+  // partida normal como en la pasarela de QC --worlds / previewWorld().
+  enemyWorldId = worldIdForLevel(l.id);
   // Arte del escenario: los mundos Kenney ya construidos imponen SU paleta
   // pastel; los pendientes siguen usando la voxel antigua. En ambos casos el
   // valor pasa por comfortArt(), que acota exposición, bloom, intensidades de
@@ -624,7 +752,6 @@ let selectedCharacter = 'vanta';
 let selectedLevelId = LEVELS[0].id;
 // (los módulos viven en state.modules)
 let currentOffers = [];
-let currentPacts = [];
 let rerolls = 2;
 let lootLevels = {};
 let hudDirty = true;
@@ -662,6 +789,364 @@ const lobs = [];
 const pylons = [], zones = [];
 let orbitBlades = [];
 const clock = new THREE.Clock();
+
+// ===========================================================================
+// PROGRESIÓN UNIFICADA — adaptador del juego + gestor de habilidades
+// ---------------------------------------------------------------------------
+// SkillManager no conoce `state`, el DOM ni la escena: todo entra por `host`.
+// Así, cuando se añada el mapa de nodos por salas, bastará con que un nodo
+// llame a `skillManager.grant(id)` para entregar su recompensa.
+// ===========================================================================
+let skillManager = null;
+let pendingLevelUps = 0;
+let activeCards = [];
+let activeCardKind = 'skill';
+const skillZones = [];     // abrojos / fuego / charcos que dañan ENEMIGOS
+const skillTurrets = [];   // torretas desplegables del Robot
+
+const SKILL_HOST = {
+  scene,
+  hero: 'vanta',
+  getState: () => state,
+  getPlayer: () => player,
+  getEnemies: () => enemies,
+  rand: () => rnd(),
+  damageEnemy(e, dmg, head = false) { if (e && !e.dead) damageEnemy(e, dmg, head); },
+  nearestEnemy(pos, r, ex) { return nearestEnemy(pos, r, ex); },
+  applyDot(e, dps, t, color) { applyDot(e, dps, t, color); },
+  emitParticles(name, pos, o) { combatParticles?.emit(name, pos, o); },
+  announce(t) { announce(t); },
+  flash(c, a, ms) { if (settings.flash) fx.flash(c, a, ms); },
+  tone(f, d, type, v, glide) { audio.tone(f, d, type, v, glide); },
+
+  damageArea(pos, radius, dmg, o = {}) {
+    if (!pos) return;
+    const R = Math.max(1, radius);
+    let hits = 0;
+    for (const e of enemies) {
+      if (e.dead || e.spawn > 0) continue;
+      const d = e.group.position.distanceTo(pos);
+      if (d > R) continue;
+      damageEnemy(e, Math.max(1, dmg * (1 - d / (R * 1.45))), false);
+      if (o.stun) { e.slow = Math.max(e.slow || 0, o.stun); e.slowFactor = .12; }
+      if (o.dot) applyDot(e, dmg * .12, o.dot, 0xff8a4a);
+      if (o.knockback) e.knock = Math.max(e.knock || 0, o.knockback * .35);
+      hits++;
+    }
+    if (hits && hits < 14) spawnBurst(pos, 0xffd7a0, 4, 2);
+  },
+
+  addStatus(e, kind) {
+    if (!e || e.dead) return;
+    if (kind === 'fire') applyDot(e, 9, 2.5, 0xf08a42);
+    else if (kind === 'poison') applyDot(e, 7, 3, 0x74d47a);
+    else if (kind === 'shock') { e.slow = Math.max(e.slow || 0, .6); e.slowFactor = .35; }
+    else { e.bleed = 3; e.dot = { dps: 6, t: 3, color: 0xd33c55 }; }
+  },
+
+  heal(amount) {
+    // Pacto de la Muerte Súbita: sin curación pasiva ni orbes de vida.
+    if (skillManager?.blocksHealing()) return;
+    const before = state.hp;
+    state.hp = Math.min(state.maxHp, state.hp + amount);
+    if (state.hp === state.maxHp && state.hp > before && skillManager?.hasFlag('overheal') && !skillManager.blocksShields()) {
+      state.shield = Math.min(60, (state.shield || 0) + 8 + skillManager.mod('overheal'));
+    }
+  },
+
+  addShield(amount) {
+    if (skillManager?.blocksShields()) return;
+    state.maxShield = Math.max(state.maxShield || 0, 60);
+    state.shield = Math.min(state.maxShield, (state.shield || 0) + amount);
+  },
+
+  slowEnemies(pos, radius, factor, dur) {
+    if (!pos) return;
+    for (const e of enemies) {
+      if (e.dead || e.spawn > 0 || e.group.position.distanceTo(pos) > radius) continue;
+      e.slow = Math.max(e.slow || 0, dur);
+      e.slowFactor = factor;
+    }
+  },
+
+  pullArea(pos, radius, dur) {
+    if (!pos) return;
+    skillZones.push({ kind: 'pull', pos: pos.clone(), r: radius, life: dur, max: dur });
+  },
+
+  // Zona de daño ENEMIGO (no confundir con spawnHazard, que daña al jugador).
+  addHazard(pos, radius, dur, dmg, slow) {
+    if (!pos) return;
+    skillZones.push({ kind: 'damage', pos: pos.clone(), r: radius, life: dur, max: dur,
+                      dmg, slow: slow || 0, tick: 0 });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(radius * .82, radius, 24),
+      new THREE.MeshBasicMaterial({ color: slow ? 0x9ade86 : 0xf08a42, transparent: true,
+        opacity: .32, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(pos.x, .09, pos.z);
+    scene.add(ring);
+    skillZones[skillZones.length - 1].mesh = ring;
+  },
+
+  deployTurret(dmg, dur) {
+    if (!player) return;
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(.45, .6, .7, 8),
+      new THREE.MeshStandardMaterial({ color: 0x3c5563, roughness: .9, metalness: .1 }));
+    base.position.y = .35;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(.8, .35, 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x6ad2e8, roughness: .85, metalness: .1,
+        emissive: 0x6ad2e8, emissiveIntensity: .18 }));
+    head.position.y = .9;
+    g.add(base, head); g.position.copy(player.position); scene.add(g);
+    skillTurrets.push({ group: g, dmg, life: dur, cd: 0 });
+  },
+
+  clearProjectiles() {
+    combatProjectiles?.clear();
+    for (const p of projectiles) { scene.remove(p.m); disposeObject3D(p.m); }
+    projectiles.length = 0;
+  },
+
+  revive(frac, pos) {
+    state.hp = Math.max(1, Math.round(state.maxHp * frac));
+    announce('EL FÉNIX OSCURO TE DEVUELVE');
+    if (pos) explode(pos, 10, 90, 0xb3354b);
+  },
+
+  onLevelUp() { pendingLevelUps++; },
+  onSynergy(syn) { showSynergyReveal(syn); },
+  onRoomCleared() { /* el bucle de oleadas sigue intacto */ }
+};
+
+skillManager = new SkillManager(SKILL_HOST);
+
+// ------------------------------------------------- zonas / torretas por frame
+function updateSkillExtras(dt) {
+  for (let i = skillZones.length - 1; i >= 0; i--) {
+    const z = skillZones[i];
+    z.life -= dt;
+    if (z.kind === 'damage') {
+      z.tick += dt;
+      if (z.tick >= .35) {
+        z.tick = 0;
+        for (const e of enemies) {
+          if (e.dead || e.spawn > 0 || e.group.position.distanceTo(z.pos) > z.r) continue;
+          damageEnemy(e, z.dmg * .35, false);
+          if (z.slow) { e.slow = Math.max(e.slow || 0, .5); e.slowFactor = z.slow; }
+        }
+      }
+    } else if (z.kind === 'pull') {
+      for (const e of enemies) {
+        if (e.dead || e.spawn > 0) continue;
+        const to = z.pos.clone().sub(e.group.position);
+        const d = to.length();
+        if (d > .8 && d < z.r) e.group.position.addScaledVector(to.normalize(), Math.min(d, 4.5 * dt));
+      }
+    }
+    if (z.mesh) z.mesh.material.opacity = .32 * Math.max(0, Math.min(1, z.life / 1.2));
+    if (z.life <= 0) {
+      if (z.mesh) { scene.remove(z.mesh); z.mesh.geometry.dispose(); z.mesh.material.dispose(); }
+      skillZones.splice(i, 1);
+    }
+  }
+  for (let i = skillTurrets.length - 1; i >= 0; i--) {
+    const t = skillTurrets[i];
+    t.life -= dt; t.cd -= dt;
+    if (t.cd <= 0) {
+      const e = nearestEnemy(t.group.position, 26);
+      if (e) {
+        t.cd = .55;
+        t.group.rotation.y = Math.atan2(e.group.position.x - t.group.position.x, e.group.position.z - t.group.position.z);
+        damageEnemy(e, t.dmg, false);
+        combatParticles?.emit('spark_05.png', t.group.position.clone().add(new THREE.Vector3(0, 1, 0)),
+          { count: 3, color: 0x6ad2e8, size: .4, life: .2 });
+      }
+    }
+    if (t.life <= 0) { scene.remove(t.group); disposeObject3D(t.group); skillTurrets.splice(i, 1); }
+  }
+}
+
+/** Un único punto del bucle: cooldowns SÓLO con enemigos vivos. */
+function updateSkills(dt) {
+  let alive = 0;
+  for (const e of enemies) if (!e.dead && e.spawn <= 0) alive++;
+  // Los pactos que aceleran/hostigan a la horda se reflejan en el spawn.
+  state.enemySpeed = 1 + skillManager.enemySpeedBonus();
+  skillManager.update(dt, alive);
+  updateSkillExtras(dt);
+  if (pendingLevelUps > 0 && state.mode === 'playing') processSkillQueue();
+}
+
+// ------------------------------------------------------------- cola de nivel
+function processSkillQueue() {
+  if (pendingLevelUps <= 0 || state.mode !== 'playing') return;
+  pendingLevelUps--;
+  const cards = skillManager.rollSkillCards(3);
+  if (!cards.length) return;
+  skillManager.play('levelUp', { volume: .65 });
+  skillManager.emit('levelup', { pos: player?.position });
+  showCardChoice(cards, 'skill');
+}
+
+// ------------------------------------------------------------ HUD de progreso
+let _skillHudKey = '';
+function renderSkillHud() {
+  const snap = skillManager.snapshot();
+  const theme = HERO_THEME[skillManager.hero] || HERO_THEME.vanta;
+  // Reconstruir SVG cada frame costaría demasiado: solo se rehace cuando
+  // cambia realmente el equipamiento. La barra de XP sí se refresca siempre.
+  const key = [snap.hero, snap.maxSlots,
+    snap.slots.map(x => x.id + x.level).join(','),
+    snap.relics.join(','), snap.pacts.join(','), snap.synergies.join(',')].join('|');
+  if (key !== _skillHudKey) {
+    _skillHudKey = key;
+    const slotsEl = $('skill-slots');
+    if (slotsEl) {
+      let html = '';
+      for (let i = 0; i < snap.maxSlots; i++) {
+        const s = snap.slots[i];
+        if (s) html += `<span class="slot-chip filled" title="${s.name} · Nivel ${s.level}" style="--slot:${theme.color}">`
+          + svgIcon(s.icon) + `<b>${s.level}</b></span>`;
+        else html += `<span class="slot-chip empty" title="Ranura vacía">＋</span>`;
+      }
+      for (let i = 0; i < 6 - snap.maxSlots; i++)
+        html += `<span class="slot-chip locked" title="Bloqueada por pacto">⛔</span>`;
+      slotsEl.innerHTML = html;
+    }
+    const bar = $('relic-bar');
+    if (bar) {
+      const parts = [];
+      for (const id of snap.relics) {
+        const it = itemById(id); if (it) parts.push(`<span class="hud-relic relic" title="${it.name}">${svgIcon(it.icon)}</span>`);
+      }
+      for (const id of snap.pacts) {
+        const it = itemById(id); if (it) parts.push(`<span class="hud-relic pact" title="${it.name} — ${it.curse}">${svgIcon(it.icon)}</span>`);
+      }
+      for (const id of snap.synergies) {
+        const it = itemById(id); if (it) parts.push(`<span class="hud-relic syn" title="${it.name}">${svgIcon(it.icon)}</span>`);
+      }
+      bar.innerHTML = parts.length ? '<small>BOTÍN</small>' + parts.join('') : '';
+    }
+  }
+  const xp = skillManager.xpInfo;
+  const lvlEl = $('xp-level'), fillEl = $('xp-fill'), xpText = $('xp-text');
+  if (lvlEl) lvlEl.textContent = 'NVL ' + String(xp.level).padStart(2, '0');
+  if (fillEl) fillEl.style.width = (xp.pct * 100).toFixed(1) + '%';
+  if (xpText) xpText.textContent = Math.floor(xp.xp) + ' / ' + xp.next;
+}
+
+// ------------------------------------------------------------- cartas (3)
+function cardMarkup(c) {
+  const it = itemById(c.id) || c;
+  const color = it.type === 'pact_relic' ? RARITY.MALDITO.color
+    : it.type === 'synergy' ? RARITY.SINERGIA.color
+    : (RARITY[it.rarity]?.color || HERO_THEME[skillManager.hero]?.color || '#9fb0bb');
+  const kindLabel = it.type === 'skill' ? `HABILIDAD // ${RARITY[it.rarity]?.label || 'COMÚN'}`
+    : it.type === 'pact_relic' ? 'PACTO MALDITO' : 'RELIQUIA GENERAL';
+  const lvl = it.type === 'skill'
+    ? `<span class="card-level">${c.nextLevel > 1 ? 'NIVEL' : 'NUEVO'}<b>${c.nextLevel}/5</b></span>` : '';
+  const curse = it.type === 'pact_relic'
+    ? `<div class="card-curse"><small>MALDICIÓN</small><span>${it.curse}</span></div>` : '';
+  const bonus = it.type === 'relic' ? '<div class="card-bonus">PASIVA PERMANENTE</div>' : '';
+  return `<button class="card-choice ${it.type === 'pact_relic' ? 'pact' : ''}" data-card="${c.id}" style="--card:${color}">`
+    + `<span class="card-icon">${svgIcon(c.icon)}</span>`
+    + `<span class="card-copy"><small>${kindLabel}</small><b>${it.name}</b>`
+    + `<span>${skillManager.describeCard(c)}</span>${curse}${bonus}</span>${lvl}</button>`;
+}
+
+function showCardChoice(cards, kind) {
+  activeCards = cards; activeCardKind = kind;
+  const wrap = $('cards'); if (!wrap) return;
+  state.mode = 'cards';
+  mouseDown = false;
+  document.exitPointerLock?.();
+  const isSkill = kind === 'skill';
+  $('cards-eyebrow').textContent = isSkill ? '// SUBIDA DE NIVEL' : '// COFRE DE ENEMIGO ESPECIAL';
+  $('cards-title').textContent = isSkill ? 'ELIGE HABILIDAD' : 'ELIGE BOTÍN';
+  $('cards-sub').textContent = isSkill
+    ? `${HERO_THEME[skillManager.hero]?.name || 'HÉROE'} · 6 ranuras · nivel máximo 5 · elige una carta`
+    : 'Reliquias generales y pactos malditos · pasivas permanentes sin límite de ranuras';
+  $('cards-options').innerHTML = cards.map(cardMarkup).join('');
+  $('cards-slots').innerHTML = isSkill
+    ? `${skillManager.slotCount}/${skillManager.maxSlots} RANURAS OCUPADAS · NVL ${skillManager.level}`
+    : `${skillManager.relics.size} RELIQUIAS · ${skillManager.pacts.size} PACTOS · ${skillManager.synergies.size} SINERGIAS`;
+  wrap.querySelectorAll('[data-card]').forEach(b => b.onclick = () => chooseCard(b.dataset.card));
+  wrap.classList.add('active');
+}
+
+function chooseCard(id) {
+  if (state.mode !== 'cards') return;
+  const res = skillManager.grant(id);
+  if (!res.ok) return;
+  const it = res.item;
+  skillManager.play(it.type === 'pact_relic' ? 'pact' : it.type === 'relic' ? 'relic' : 'levelUp',
+    it.type === 'pact_relic' ? { grave: true, volume: .6 } : { volume: .6 });
+  if (activeCardKind === 'chest') {
+    addFeed('BOTÍN // ' + it.name, 250);
+  } else {
+    addFeed('HABILIDAD // ' + it.name + (res.leveled > 1 ? ' NVL ' + res.leveled : ''), 250);
+  }
+  closeCards();
+  updateHUD(); hudDirty = true;
+  // Si se subieron varios niveles de golpe, se encadenan las cartas.
+  if (pendingLevelUps > 0) setTimeout(() => processSkillQueue(), 260);
+}
+
+function closeCards() {
+  $('cards')?.classList.remove('active');
+  activeCards = [];
+  if (state.mode === 'cards') state.mode = 'playing';
+  clock.getDelta();
+  lockPointer();
+}
+
+// -------------------------------------------- sinergia automática dorada
+function showSynergyReveal(syn) {
+  const wrap = $('synergy-reveal'); if (!wrap) return;
+  // La sinergia sustituye a la elección de cartas: se limpia el overlay de
+  // cartas para que no queden botones residuales en el DOM.
+  $('cards')?.classList.remove('active');
+  const co = $('cards-options'); if (co) co.innerHTML = '';
+  activeCards = [];
+  state.mode = 'synergy';
+  mouseDown = false;
+  document.exitPointerLock?.();
+  $('syn-icon').innerHTML = svgIcon(syn.icon);
+  $('syn-name').textContent = syn.name;
+  $('syn-desc').textContent = syn.desc;
+  $('syn-req').textContent = syn.req.map(id => itemById(id)?.name || id).join('  +  ');
+  wrap.classList.remove('active');
+  void wrap.offsetWidth;              // reinicia la animación de entrada
+  wrap.classList.add('active');
+  skillManager.play('synergy', { volume: .7 });
+  audio.tone(523, .5, 'sine', .12, 880);
+  setTimeout(() => audio.tone(784, .6, 'sine', .1, 1180), 170);
+  if (settings.flash) fx.flash('#f0c65a', .22, 420);
+  addFeed('SINERGIA // ' + syn.name, 800);
+  const btn = $('syn-continue');
+  btn.onclick = closeSynergy;
+  clearTimeout(showSynergyReveal._t);
+  showSynergyReveal._t = setTimeout(() => { if (state.mode === 'synergy') closeSynergy(); }, 3400);
+}
+function closeSynergy() {
+  clearTimeout(showSynergyReveal._t);
+  $('synergy-reveal')?.classList.remove('active');
+  if (state.mode === 'synergy') state.mode = 'playing';
+  clock.getDelta(); lockPointer();
+  updateHUD(); hudDirty = true;
+  if (pendingLevelUps > 0) setTimeout(() => processSkillQueue(), 260);
+}
+
+// --------------------------------------------- mejora de estadísticas base
+function applyBaseStat(id) {
+  const s = STAT_UPGRADES.find(x => x.id === id);
+  if (!s) return false;
+  s.apply(state);
+  syncAmmo(false);
+  addFeed('ESTADÍSTICA // ' + s.name, 200);
+  audio.tone(300, .22, 'sine', .1, 520);
+  return true;
+}
 
 // ---------------------------------------------------------------- audio
 class AudioEngine {
@@ -893,6 +1378,8 @@ function paintOperatorHero(id) {
 function selectCharacter(id) {
   if (!CHARACTERS[id]) return;
   selectedCharacter = id;
+  // Las 10 habilidades exclusivas del héroe se filtran por este id.
+  if (skillManager) { skillManager.hero = id; SKILL_HOST.hero = id; _skillHudKey = ''; }
   hubSkillChar = id;
   buildOperatorRoster();
   document.querySelectorAll('#op-roster .roster-item').forEach(item =>
@@ -1048,7 +1535,7 @@ function selectHubTab(tab) {
 }
 function openHub(tab) {
   state.mode = 'hub'; mouseDown = false; document.exitPointerLock?.();
-  ['menu', 'gameover', 'pause', 'upgrade', 'loot'].forEach(id => $(id).classList.remove('active'));
+  ['menu', 'gameover', 'pause', 'upgrade', 'cards', 'synergy-reveal'].forEach(id => $(id)?.classList.remove('active'));
   $('hud').classList.add('hidden');
   $('lowhp').classList.remove('on');
   $('hub').classList.add('active');
@@ -1356,26 +1843,12 @@ function installModule(id) {
 }
 
 // --- pactos ---------------------------------------------------------------
-function offerPact() {
-  const taken = state.pacts.map(p => p.id);
-  const pool = PACTS.filter(p => !taken.includes(p.id));
-  if (!pool.length) return null;
-  return pool[Math.floor(rnd() * pool.length)];
-}
-function takePact(id) {
-  const p = PACTS.find(x => x.id === id);
-  if (!p || state.pacts.some(x => x.id === id)) return;
-  state.pacts.push(p);
-  p.apply(state);
-  state.buildScore = (state.buildScore || 1) * (p.score || 1);
-  state.scoreMult = (state.roundScoreMult || 1) * state.buildScore;
-  syncAmmo();
-  announce('PACTO SELLADO // ' + p.name);
-  audio.tone(90, .75, 'sawtooth', .2, 380);
-  fx.flash('#b56bff', .2, 260);
-  if (player) { ringPulse(player.position.clone(), 0xb56bff, 5.5, .9); crystalShell(player.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 3, 0xb56bff, .9); }
-  hudDirty = true;
-}
+// ELIMINADO: el catálogo antiguo de pactos (`PACTS` en arsenal.js) y la oferta
+// de fin de ronda ya no existen. Los 10 Pactos Malditos viven en
+// SkillsDatabase.js (`type: 'pact_relic'`) y solo se obtienen en COFRES;
+// SkillManager aplica tanto la ventaja como la penalización. `PACTS` se
+// conserva únicamente como archivo de datos para el códice, sin lógica aquí.
+
 
 // --- director de amenaza --------------------------------------------------
 // La presión no depende solo de la ronda: sube con el TIEMPO real de incursión
@@ -1438,7 +1911,8 @@ function bossIndexForRound(wave) {
 }
 function createBoss(x, z, faction, kindId) {
   const idx = bossIndexForRound(state.wave);
-  const kind = BOSSES.find(b => b.id === kindId) || bossFor(faction, idx);
+  // FASE 3: 3 jefes por BIOMA, elegidos al azar. `kindId` solo se usa en QC.
+  const kind = BOSSES.find(b => b.id === kindId) || randomBossForWorld(enemyWorldId, rnd);
   const g = buildBossMesh(kind);
   g.position.set(x, 0, z);
   g.scale.setScalar(.05);
@@ -1451,43 +1925,61 @@ function createBoss(x, z, faction, kindId) {
   const hp = kind.hp * hpMod * (1 + cycle * .6);
   const baseShield = (faction === 'SYNTEK' ? 260 : 0) + (hasMod('shield') ? hp * .18 : 0);
   const e = {
-    group: g, type: 'boss', hp, maxHp: hp, radius: 1.7 * kind.scale * .8, legs: g.userData.legs || [], plates: [],
-    dead: false, phase: rnd() * 6, spawn: .8, flash: 0, targetScale: kind.scale, elite: false, faction,
+    group: g, type: 'boss', hp, maxHp: hp, radius: kind.radius, legs: g.userData.legs || [], plates: [],
+    dead: false, phase: rnd() * 6, spawn: .8, flash: 0, targetScale: 1, elite: false, faction,
     y: 0, vy: 0, level: rs.level, tier: rs.tier, kind, bossIdx: idx,
-    floats: (g.userData.legs || []).length === 0,
-    speed: kind.speed * (faction === 'HIVE' ? 1.12 : faction === 'UMBRA' ? .95 : 1) * diff.speed * (hasMod('fast') ? 1.15 : 1) * (state.curse || 1),
+    creature: g.userData.creature || null,
+    floats: !!g.userData.floats,
+    speed: kind.speed * diff.speed * (hasMod('fast') ? 1.15 : 1) * (state.curse || 1),
     dmgMult: diff.damage * Math.min(2.2, rs.dmg) * (1 + idx * .12) * (hasMod('rage') ? 1.2 : 1),
     chipMult: hasMod('glass') ? 2 : 1, knock: 0, step: rnd() * 6,
     cooldown: 2, armor: 0, armorMax: 0,
     shield: baseShield, shieldMax: baseShield, shieldTimer: 0,
     sprint: 1, burst: 0, charge: 0, dive: 2, healTimer: 2, blink: 4,
-    hover: 3.4, orbitCd: 0, slow: 0, touchCd: 0, bossKind: kind.name,
+    hover: 3.4, orbitCd: 0, slow: 0, touchCd: 0, bossKind: kind.id, bossKindName: kind.name,
     summon: 5, pulse: 3,
-    // estado propio del combate de jefe
-    phaseIdx: 0, abilityIdx: rnd() < .5 ? 0 : 1, abilityTimer: 3.2, telegraphT: 0, telegraphId: null,
+    // estado propio del combate de jefe (Fase 2 al 50% de vida)
+    phaseIdx: 0, abilityIdx: 0, abilityTimer: 2.6, telegraphT: 0, telegraphId: null,
     casting: 0, chargeGo: 0, invuln: 0,
-    // mismos ganchos de destello que los hostiles comunes
-    flashMeshes: (() => {
-      const list = [];
-      g.traverse(o => { if (o.isMesh && o.material && !Array.isArray(o.material) && o.material.emissive) list.push({ o, base: o.material }); });
-      return list;
-    })()
+    flashMeshes: []
   };
   enemies.push(e);
-  spawnBurst(new THREE.Vector3(x, 1.2, z), faction === 'HIVE' ? 0xb6ff3d : faction === 'UMBRA' ? 0xb56bff : C.coral, 30, 6);
+  spawnBurst(new THREE.Vector3(x, 2.0, z), kind.color, 38, 7);
+  ringPulse(new THREE.Vector3(x, .4, z), kind.color, 7, .8);
+  showBossBanner(kind);
   Meta.markSeen('bosses', kind.id);
   if (Meta.getCodex().bosses[kind.id] && Meta.getCodex().bosses[kind.id].seen === 1)
     announce('NUEVO REGISTRO // ' + kind.name);
-  announce('JEFE: ' + kind.name);
+  announce('JEFE: ' + kind.name + ' // ' + kind.title);
   return e;
 }
-// Tipos demasiado pequeños (o aéreos) para que su sombra se lea en el suelo.
-const NO_SHADOW_TYPES = new Set(['swarmling', 'drone', 'flyer', 'wraith']);
-function createEnemy(type, x, z, elite = false, faction = 'SYNTEK', bossKindId) {
+
+/** Banner dramático de entrada: nombre + título. Animación ÚNICA, sin pulsos. */
+function showBossBanner(kind) {
+  const el = $('boss-banner'); if (!el) return;
+  el.querySelector('[data-name]').textContent = kind.name;
+  el.querySelector('[data-title]').textContent = kind.title;
+  el.querySelector('[data-world]').textContent = (WORLD_BOSSES[kind.world] ? kind.world.replace('world', 'SECTOR ').replace('_', ' ') : kind.world).toUpperCase();
+  el.classList.remove('active');
+  void el.offsetWidth;                  // reinicia la animación de entrada
+  el.classList.add('active');
+  clearTimeout(showBossBanner._t);
+  showBossBanner._t = setTimeout(() => el.classList.remove('active'), 2600);
+}
+function hideBossBanner() {
+  const el = $('boss-banner'); if (!el) return;
+  el.classList.remove('active'); clearTimeout(showBossBanner._t);
+}
+// Fase 2: solo los diminutos prescinden de sombra. Los VOLADORES conservan
+// castShadow=true: su sombra real cae sobre el suelo del bioma (sin decales).
+const NO_SHADOW_TYPES = new Set(['swarmling', 'wraith']);
+function createEnemy(type, x, z, elite = false, faction = 'SYNTEK', bossKindId, modelSpec) {
   if (type === 'boss') return createBoss(x, z, faction, bossKindId);
   const info = ENEMY_INFO[type] || ENEMY_INFO.chaser;
-  const isTank = type === 'tank';
-  const scale = (isTank ? 1.32 : type === 'drone' ? .74 : type === 'stalker' ? .95 : 1) * (elite ? 1.22 : 1);
+  const archetype = archetypeForType(type);
+  const isTankArch = archetype === 'tank';
+  // Tanque 1.8x (y resistente al retroceso), volador algo más menudo.
+  const scale = (isTankArch ? 1.8 : archetype === 'flyer' ? .86 : type === 'stalker' ? .95 : 1) * (elite ? 1.22 : 1);
   const rs = roundScaling(state.wave);
   // --- Afijos de élite -----------------------------------------------------
   // Se eligen ANTES de construir el cuerpo para poder teñir la corona con el
@@ -1501,9 +1993,11 @@ function createEnemy(type, x, z, elite = false, faction = 'SYNTEK', bossKindId) 
   const affHp = affixes.reduce((a, f) => a * (f.hp || 1), 1);
   const affDmg = affixes.reduce((a, f) => a * (f.dmg || 1), 1);
   const affSpeed = affixes.reduce((a, f) => a * (f.speed || 1), 1);
-  // Cuerpo: plantilla horneada por (tipo, facción, tramo). Comparte geometría y
-  // materiales con el resto de hostiles iguales, así que un spawn cuesta muy poco.
-  const g = buildEnemyModel(type, faction, rs.tier);
+  // Cuerpo: plantilla GLB REAL del roster del bioma. Comparte geometría,
+  // materiales y AnimationClips entre todas las instancias; el mixer es propio.
+  const g = buildEnemyModel(type, faction, rs.tier, enemyWorldId, enemyVariant++, {
+    spec: modelSpec, groupScale: scale
+  });
   g.position.set(x, 0, z);
   g.scale.setScalar(.05);
   // Los hostiles muy pequeños no proyectan sombra: en el pase de sombras no se
@@ -1513,12 +2007,14 @@ function createEnemy(type, x, z, elite = false, faction = 'SYNTEK', bossKindId) 
   scene.add(g);
   const diff = currentDifficulty();
   const hpMod = diff.hp * (hasMod('tank') ? 1.5 : hasMod('glass') ? .6 : 1);
-  const hp = info.hp * rs.hp * hpMod * (elite ? 2.4 : 1) * affHp * state.threat;
+  const hp = info.hp * rs.hp * hpMod * (elite ? 2.4 : 1) * (elite ? 1 + skillManager.eliteHpBonus() : 1) * affHp * state.threat;
   const baseShield = (faction === 'SYNTEK' ? 28 * rs.hp : 0) + (hasMod('shield') ? hp * .22 : 0);
-  const baseArmor = isTank ? hp * .55 : hp * rs.armor;
+  const baseArmor = isTankArch ? hp * .55 : hp * rs.armor;
   const e = {
     group: g, type, hp, maxHp: hp, radius: info.radius * scale, legs: g.userData.legs, arms: g.userData.arms, plates: g.userData.plates, dead: false, phase: rnd() * 6,
     spawn: .55, flash: 0, targetScale: scale, elite, faction, y: 0, vy: 0,
+    archetype, worldId: enemyWorldId, eliteKind: null, shieldGuard: 0,
+    velX: 0, velZ: 0, boostT: 0,
     level: rs.level, tier: rs.tier,
     speed: info.speed * rs.speed * (faction === 'HIVE' ? 1.12 : faction === 'UMBRA' ? .95 : 1) * diff.speed * (hasMod('fast') ? 1.2 : 1) * (state.curse || 1) * (state.enemySpeed || 1) * affSpeed,
     dmgMult: diff.damage * rs.dmg * (hasMod('rage') ? 1.25 : 1) * affDmg,
@@ -1528,14 +2024,17 @@ function createEnemy(type, x, z, elite = false, faction = 'SYNTEK', bossKindId) 
     sprint: 1 + rnd() * 2, burst: 0, charge: 0, dive: 2 + rnd() * 3, healTimer: 2, blink: 3 + rnd() * 3,
     hover: 3.4 + rnd() * 2.6, orbitCd: 0, slow: 0, touchCd: 0, bossKind: null,
     summon: 5, pulse: 3, affixes, affixName: affixes.map(f => f.name).join(' + '),
-    // Meshes con material emisivo, para intercambiar a la variante de destello sin
-    // recorrer el árbol del hostil en cada frame.
-    flashMeshes: (() => {
+    // Fase 2: el flash blanco de 0.08 s lo hace CreatureVisual.hit() con un
+    // material compartido. El sistema heredado de intercambio de materiales
+    // queda vacío para no pelearse con el mixer ni teñir a los clones.
+    flashMeshes: g.userData.creature ? [] : (() => {
       const list = [];
       g.traverse(o => { if (o.isMesh && o.material && !Array.isArray(o.material) && o.material.emissive) list.push({ o, base: o.material }); });
       return list;
     })()
   };
+  // Acceso vivo al visual (puede llegar tarde por carga fría del GLB).
+  Object.defineProperty(e, 'creature', { get: () => g.userData.creature || null, configurable: true });
   // Enganche de aparición del afijo (BLINDADO añade placas encima de la vida).
   for (const f of affixes) if (f.onSpawn) f.onSpawn(e, AFFIX_API);
   enemies.push(e);
@@ -1583,13 +2082,17 @@ function spawnWave() {
     ? Math.min(6 + Math.floor(state.wave / 2), 16)
     : Math.min(Math.round(ROUNDS.countBase + (state.wave - 1) * ROUNDS.countPerRound), ROUNDS.countMax);
   if (boss) {
-    const kind = bossFor(faction, bossIndexForRound(state.wave));
+    // Uno de los TRES jefes exclusivos del bioma activo, al azar.
+    const kind = randomBossForWorld(enemyWorldId, rnd);
     const sp = clearSpawn(0, -24, 2.4);
     createEnemy('boss', sp.x, sp.z, false, faction, kind.id);
     $('boss-wrap').classList.remove('hidden');
     $('boss-name').textContent = kind.name + ' // ' + kind.title + ' // NVL ' + rs.level;
-    announce('JEFE DE SECTOR // ' + kind.name);
-  } else $('boss-wrap').classList.add('hidden');
+    $('boss-phase').textContent = 'FASE 1';
+  } else {
+    $('boss-wrap').classList.add('hidden');
+    hideBossBanner();
+  }
   const elites = state.wave >= ROUNDS.eliteFrom
     ? Math.min(1 + Math.floor((state.wave - ROUNDS.eliteFrom) / ROUNDS.eliteEvery) + (rs.tier > 0 ? rs.tier : 0), 10) * (hasMod('elite') ? 2 : 1)
     : 0;
@@ -1617,6 +2120,20 @@ function spawnWave() {
     if (hasMod('swarm') && i % 2 === 0) type = i % 4 === 0 ? 'flyer' : 'stalker';
     const sp = clearSpawn(x, z, 1.2);
     createEnemy(type, sp.x, sp.z, i < elites && !boss, faction);
+  }
+  // --- Fase 2: UN élite exclusivo por bioma en cada oleada ------------------
+  // Usa el modelo GLB propio del roster, hereda toda la IA/afijos/botín y
+  // activa su mecánica (charco ácido, invocaciones, aura, kamikaze...).
+  const worldElite = eliteForWorld(enemyWorldId);
+  if (worldElite && state.wave >= 2) {
+    const esp = clearSpawn(0, -22, 2.4);
+    const we = createEnemy(worldElite.type, esp.x, esp.z, true, faction, undefined, worldElite.spec);
+    if (we) {
+      we.eliteKind = worldElite.id;
+      we.hp = we.maxHp = Math.round(we.maxHp * 2.2);
+      we.armor = we.armorMax = Math.round(we.armorMax * 1.5);
+      announce('ÉLITE DE BIOMA // ' + worldElite.name);
+    }
   }
   state.pending = boss ? 4 : Math.min(2 + state.wave, 8);
   // Objetivo de extracción: tres cajas de datos marcadas en dorado.
@@ -1682,7 +2199,12 @@ function disposeObject3D(obj) {
     if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
     if (o.material) {
       const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for (const m of mats) if (!SHARED_MATERIALS.has(m)) m.dispose();
+      // Fase 2: los materiales de las criaturas GLB son COMPARTIDOS por todas
+      // las instancias (SkeletonUtils.clone). Liberarlos al morir uno dejaría
+      // negros a los demás; se liberan juntos en disposeEnemyCache().
+      for (const m of mats) {
+        if (!SHARED_MATERIALS.has(m) && !m.userData?.nrCreature) m.dispose();
+      }
     }
   });
 }
@@ -1969,14 +2491,48 @@ function spawnLootBox(pos) {
   fx.flash('#ff4d38', .22, 220);
   audio.tone(520, .5, 'square', .12, 600); audio.tone(180, .6, 'sawtooth', .12, 220);
 }
+/** Cofre de jefe garantizado: modelo REAL chest.glb del kit de nieve.
+ *  Al recogerlo abre SIEMPRE el cofre de reliquias/pactos (o la sinergia). */
+const BOSS_CHEST_SPEC = { root: 'worlds', file: 'world2_snow/chest.glb' };
+function spawnBossChest(pos, color = 0xffbf47) {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  g.position.y = groundAt(pos.x, pos.z, 0, 2) + .1;
+  const tpl = getCreatureTemplateSync(BOSS_CHEST_SPEC);
+  if (tpl) {
+    const chest = tpl.scene.clone(true);
+    chest.traverse(o => {
+      if (!o.isMesh) return;
+      o.castShadow = false; o.receiveShadow = false;
+      if (o.geometry) { o.geometry.userData.shared = true; o.geometry.userData.nrCreature = true; }
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) if (m) m.userData.nrCreature = true;
+    });
+    chest.scale.setScalar(2.8 / Math.max(.01, tpl.height));
+    g.add(chest);
+  }
+  const light = new THREE.PointLight(color, 30, 15); light.position.y = 1.6; g.add(light);
+  scene.add(g);
+  lootBoxes.push({
+    group: g, cage: null, halo: null, halo2: null, beam: null,
+    light, phase: rnd() * 6, base: g.position.y, bossChest: true
+  });
+  diagBoss.chests++;
+  announce('COFRE DE JEFE // RECOMPENSA GARANTIZADA');
+  spawnBurst(g.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffc94d, 46, 8);
+  ringPulse(g.position.clone(), 0xffc94d, 7, .9);
+  playSfx('scifi/forceField_000.ogg', { volume: .3, pitch: 1.2 });
+  return g;
+}
 function updateLoot(dt) {
   for (let i = lootBoxes.length - 1; i >= 0; i--) {
     const b = lootBoxes[i]; b.phase += dt;
-    b.group.rotation.y += dt * 1.7; b.cage.rotation.x += dt * 1.1; b.cage.rotation.y -= dt * .8;
+    b.group.rotation.y += dt * (b.bossChest ? .8 : 1.7);
+    if (b.cage) { b.cage.rotation.x += dt * 1.1; b.cage.rotation.y -= dt * .8; }
     b.group.position.y = b.base + Math.sin(b.phase * 2.6) * .12;
-    b.halo.scale.setScalar(1 + Math.sin(b.phase * 4) * .16);
-    b.halo2.rotation.z += dt * 2.2; b.halo2.scale.setScalar(1 + Math.cos(b.phase * 3) * .22);
-    b.beam.material.opacity = .09 + Math.sin(b.phase * 3.4) * .045;
+    if (b.halo) b.halo.scale.setScalar(1 + Math.sin(b.phase * 4) * .16);
+    if (b.halo2) { b.halo2.rotation.z += dt * 2.2; b.halo2.scale.setScalar(1 + Math.cos(b.phase * 3) * .22); }
+    if (b.beam) b.beam.material.opacity = .09 + Math.sin(b.phase * 3.4) * .045;
     if (b.light) b.light.intensity = 20 + Math.sin(b.phase * 5) * 8;
     // BOBINA IMANTADORA: el botín viene hacia ti sin que tengas que perseguirlo.
     if (hasRelic('imantadora') && state.mode === 'playing' && !b.objCache) {
@@ -2028,67 +2584,29 @@ function updateWaypoint() {
   el.querySelector('span').textContent = Math.round(bd) + ' M';
 }
 function rollLoot() {
-  const pool = [];
-  // Sin botín de armas: el arma única es fija por héroe. El botín solo reparte
-  // habilidades (sistema intacto) y mejoras de estadísticas.
-  for (const a of ABILITIES) if ((state.abilities[a.id] || 0) < a.max) pool.push({ kind: 'ability', data: a, weight: 3 });
-  for (const b of BOOSTS) if ((lootLevels[b.id] || 0) < b.max) pool.push({ kind: 'boost', data: b, weight: 2 });
-  if (!pool.length) { state.score += 500; state.chips += 120; addFeed('BOTÍN DUPLICADO', 500); return; }
-  const total = pool.reduce((n, x) => n + x.weight, 0);
-  let roll = rnd() * total, chosen = pool[0];
-  for (const p of pool) { roll -= p.weight; if (roll <= 0) { chosen = p; break; } }
-  showLootReveal(chosen);
-}
-function showLootReveal(item) {
-  state.mode = 'loot'; mouseDown = false; document.exitPointerLock?.();
-  pendingItem = item;
-  const d = item.data;
-  const isAbility = item.kind === 'ability';
-  $('loot-icon').textContent = d.icon;
-  $('loot-icon').style.setProperty('--rarity', uiGem(d.color));
-  $('loot-kind').textContent = isAbility ? 'HABILIDAD ESPECIAL' : 'MEJORA';
-  $('loot-name').textContent = d.name;
-  $('loot-sub').textContent = d.trigger || 'INSTANTÁNEO';
-  const level = isAbility ? (state.abilities[d.id] || 0) : 0;
-  $('loot-desc').textContent = isAbility ? d.desc(level) : (d.desc ? d.desc(level) : d.how);
-  $('loot-how').textContent = d.how || '';
-  const synBox = $('loot-synergy');
-  const syn = isAbility ? synergyCompletedBy(d.id) : null;
+  // FUENTE 2 — Cofre de enemigo especial.
+  // a) Si el héroe ya reúne los 2 requisitos de su sinergia, se concede
+  //    AUTOMÁTICAMENTE con animación dorada (no consume elección).
+  const syn = skillManager.pendingSynergy();
   if (syn) {
-    synBox.classList.remove('hidden');
-    synBox.style.setProperty('--syn', uiGem(syn.color));
-    $('loot-synergy-name').textContent = syn.name;
-    $('loot-synergy-desc').textContent = syn.desc;
-  } else synBox.classList.add('hidden');
-  $('loot').classList.add('active');
-  audio.tone(520, .35, 'square', .14, 420); audio.tone(300, .5, 'sawtooth', .12, 180);
-  if (syn) { fx.flash(syn.color, .3, 260); audio.tone(880, .5, 'square', .1, 700); }
-}
-let pendingItem = null;
-function equipLoot() {
-  const item = pendingItem; if (!item) return;
-  const d = item.data;
-  if (item.kind === 'ability') {
-    state.abilities[d.id] = (state.abilities[d.id] || 0) + 1;
-    state.timers[d.id] = 0;
-    Meta.markSeen('abilities', d.id);
-    if (d.id === 'swarm') spawnCompanion(true);
-    if (d.id === 'orbit') syncOrbit();
-    if (d.id === 'regen' && state.maxShield === 0) { state.maxShield = 40; state.shield = 40; }
-    checkAbilityEvolution(d.id);
-  } else {
-    lootLevels[d.id] = (lootLevels[d.id] || 0) + 1;
-    d.apply(state);
-    syncAmmo(false);
+    skillManager.grant(syn.id);
+    showSynergyReveal(syn);
+    return;
   }
-  // Sinergia nueva: se anota en el códice la primera vez que se forma.
-  for (const s of activeSynergies()) Meta.markSeen('synergies', s.id);
-  pendingItem = null;
-  $('loot').classList.remove('active');
-  state.mode = 'playing'; clock.getDelta(); lockPointer();
-  addFeed('EQUIPADO: ' + d.name, 250); updateHUD(); hudDirty = true;
+  // b) Si no, 3 cartas mezclando reliquias generales y pactos malditos.
+  const cards = skillManager.rollChestCards(3);
+  if (!cards.length) {
+    state.score += 500; state.chips += 250;
+    addFeed('BOTÍN DUPLICADO', 500);
+    return;
+  }
+  skillManager.emit('chest', { pos: player?.position });
+  showCardChoice(cards, 'chest');
 }
-
+// REVELACIÓN DE BOTÍN ANTIGUA — ELIMINADA.
+// El cofre ya no entrega una única habilidad/boost con pantalla explicativa:
+// ahora abre 3 cartas (reliquias + pactos) o concede la sinergia automáticamente.
+// Ver rollLoot(), showCardChoice() y showSynergyReveal().
 // ---------------------------------------------------------------- habilidades
 function abilityLevel(id) { return state.abilities[id] || 0; }
 // Sinergias: se activan al reunir las dos habilidades que pide la combinación.
@@ -2798,7 +3316,10 @@ function shoot() {
   if (state.mode !== 'playing' || state.reloading > 0 || state.fireTimer > 0 || state.dashing > 0) return;
   const w = currentWeapon();
   if (state.ammo <= 0) { reload(); return; }
-  const rate = state.fireRate * w.fireRate * (state.overdrive > 0 ? .55 : 1) * (frenzyActive() ? .62 : 1) * (state.stim > 0 ? .7 : 1) * (state.retaliateT > 0 ? 1 / (1 + (state.retaliate || 0)) : 1);
+  // Modificadores del catálogo unificado (proyectiles extra, perforación,
+  // rebote, dispersión, daño, alcance y cadencia).
+  const sk = skillManager.emit('shoot', { weapon: w });
+  const rate = state.fireRate * w.fireRate * (state.overdrive > 0 ? .55 : 1) * (frenzyActive() ? .62 : 1) * (state.stim > 0 ? .7 : 1) * (state.retaliateT > 0 ? 1 / (1 + (state.retaliate || 0)) : 1) * skillManager.fireRateMult();
   state.fireTimer = rate; state.ammo--; state.shake = Math.max(state.shake, .08 + w.kick * .3); state.shotCount++; state.recoil = 1;
   state.runShots += w.pellets;
 
@@ -2808,10 +3329,10 @@ function shoot() {
   const baseDir = new THREE.Vector3(-Math.sin(state.yaw) * Math.cos(state.pitch), Math.sin(state.pitch), -Math.cos(state.yaw) * Math.cos(state.pitch)).normalize();
   const mp = new THREE.Vector3(); player.userData.muzzle.getWorldPosition(mp);
   const rcLvl = abilityLevel('ricochet');
-  const pierce = 1 + w.pierce + state.pierceBonus + (rcLvl > 0 ? 1 + rcLvl : 0);
+  const pierce = 1 + w.pierce + state.pierceBonus + (rcLvl > 0 ? 1 + rcLvl : 0) + sk.pierce + Math.min(4, sk.bounce);
   const dmgBase = state.damage * w.damage * (1 + (state.weaponBlessing || 0))
     * (state.overdrive > 0 ? 1.25 : 1) * (frenzyActive() ? 1.2 : 1);
-  const maxT = w.range || 85;
+  const maxT = (w.range || 85) * sk.range;
 
   // Salida: fogonazo Kenney propio del héroe + chispas 3D + SFX con pitch
   // aleatorio y polifonía limitada. Ya no existe el tracer hitscan genérico.
@@ -2822,10 +3343,12 @@ function shoot() {
   if (state.grenade && state.shotCount % state.grenadeEvery === 0) fireGrenade();
   if (hasRelic('core_inestable') && state.shotCount % 12 === 0) firePureLance(baseDir, dmgBase);
 
-  for (let p = 0; p < w.pellets; p++) {
+  const totalPellets = w.pellets + Math.min(8, sk.pellets);
+  const spread = (w.spread || 0) + sk.spread;
+  for (let p = 0; p < totalPellets; p++) {
     const dir = baseDir.clone();
-    if (w.spread) {
-      dir.x += (rnd() - .5) * w.spread * 2; dir.y += (rnd() - .5) * w.spread * 2; dir.z += (rnd() - .5) * w.spread * 2;
+    if (spread) {
+      dir.x += (rnd() - .5) * spread * 2; dir.y += (rnd() - .5) * spread * 2; dir.z += (rnd() - .5) * spread * 2;
       dir.normalize();
     }
     const hits = [];
@@ -2849,6 +3372,7 @@ function shoot() {
     const impact = (at) => {
       for (const h of limited) {
         applyShotHit(h, dmgBase);
+        skillManager.emit('hit', { enemy: h.e, pos: at, crit: false, weapon: w });
         spawnBurst(at, h.head ? C.white : w.color, h.head ? 5 : 3, 2);
       }
       combatParticles?.preset(selectedCharacter, 'impact', at, dir, {});
@@ -2859,8 +3383,8 @@ function shoot() {
       // Flecha / orbe arcano / haz láser: malla 3D ligera del pool. El daño
       // llega con el proyectil, no en el instante de apretar el gatillo.
       combatProjectiles?.spawn(w.projectile, mp, end, {
-        speed: w.projectileSpeed, characterId: selectedCharacter,
-        size: w.projectile === 'laser' ? .48 : .34,
+        speed: w.projectileSpeed * (1 + (sk.projScale - 1) * .4), characterId: selectedCharacter,
+        size: (w.projectile === 'laser' ? .48 : .34) * sk.projScale,
         onImpact: impact
       });
     } else {
@@ -2920,7 +3444,13 @@ function updateDots(dt) {
 }
 
 function damageEnemy(e, dmg, headshot) {
-  let d = dmg;
+  // Multiplicador GLOBAL del catálogo unificado: se aplica aquí una sola vez
+  // para que TODAS las fuentes (arma, habilidades, reliquias, sinergias)
+  // escalen igual sin duplicarse en cada llamada.
+  let d = dmg * skillManager.damageMult()
+    * (e.vulnerable > 0 ? 1 + skillManager.mod('vulnerable') : 1);
+  // Fase 2 — aura del Dron Escudero: reducción de daño a los aliados cercanos.
+  if (e.shieldGuard > 0) d *= (1 - Math.min(.8, e.shieldGuard));
   // Cambio de fase del jefe: breve ventana invulnerable, bien telegrafiada.
   if (e.invuln > 0) { e.flash = .06; return; }
   // GLITCH: cada impacto tira un dado; si sale, el golpe se multiplica por tres.
@@ -2930,7 +3460,7 @@ function damageEnemy(e, dmg, headshot) {
   }
   if (e.armor > 0) { e.armor -= d * .5; d *= .45; if (e.armor <= 0) breakArmor(e); }
   if (e.shield > 0) { const abs = Math.min(e.shield, d); e.shield -= abs; d -= abs; e.shieldTimer = 4; }
-  const crit = !headshot && rnd() < state.critChance;
+  const crit = !headshot && rnd() < Math.min(.95, state.critChance + skillManager.critBonus());
   if (crit) d *= state.critMult;
   // EJECUCIÓN: si el golpe deja al hostil bajo el umbral y es un tiro a la
   // cabeza o cuerpo a cuerpo (o tienes COSECHA), se remata al instante.
@@ -2943,7 +3473,10 @@ function damageEnemy(e, dmg, headshot) {
     }
   }
   e.hp -= d; e.flash = .08; e.hitAnim = .18; e.hitDir = (e.hitDir || 0);
-  e.knock = Math.max(e.knock || 0, Math.min(.55, d * .0022));
+  // Los tanques (1.8x) apenas se mueven con los impactos.
+  e.knock = Math.max(e.knock || 0, Math.min(.55, d * .0022) * (e.archetype === 'tank' ? .18 : 1));
+  // Flash blanco de 0.08 s + clip de reacción del GLB real.
+  e.creature?.hit();
   audio.hit();
   // --- elementos de la build ------------------------------------------------
   // El arma única ya no inyecta quemadura, ralentización ni rebote: esos
@@ -3016,6 +3549,11 @@ function killEnemy(e, headshot) {
     state.kills++;
     tryGrantAchievement('firstblood');
     Meta.markSeen('enemies', e.type + ':' + e.faction, { kills: 1 });
+    // FUENTE 1 — XP: los orbes vuelan al héroe y al llegar pueden abrir las
+    // 3 cartas de habilidades exclusivas. El cofre sigue siendo independiente.
+    const xp = e.type === 'boss' ? 90 : e.elite ? 32 : 8 + state.wave * 1.6;
+    skillManager.addXp(xp, e.group.position);
+    skillManager.emit('kill', { enemy: e, pos: e.group.position });
   }
   // Baja cuerpo a cuerpo: progreso de la ranura, del objetivo y del logro.
   if (!phantom && e.lastHitBy === 'melee') {
@@ -3106,13 +3644,32 @@ function killEnemy(e, headshot) {
   }
   // --- RONIN: rematar cuerpo a cuerpo recupera el dash ---------------------
   if (state.meleeDash && e.lastHitBy === 'melee') { state.dash = 1; }
+  // --- Fase 2: mecánica de muerte del élite de bioma + animación de muerte --
+  if (!phantom) onWorldEliteDeath(e, ELITE_API);
+  retireCreature(e);
   scene.remove(e.group); disposeObject3D(e.group);
   addFeed(phantom ? 'REFLEJO ROTO' : headshot ? 'HEADSHOT' : e.elite ? 'ÉLITE PURGADO' : 'SEÑAL PURGADA', phantom ? 0 : base);
-  // El botín especial es más raro pero más contundente: jefe siempre, élite con probabilidad.
-  if (e.type === 'boss') { for (let i = 0; i < 3; i++) spawnLootBox(e.group.position.clone().add(new THREE.Vector3((rnd() - .5) * 3, 0, (rnd() - .5) * 3))); }
-  else if (e.elite && rnd() < .45) spawnLootBox(e.group.position.clone());
+  // El botín especial es más raro pero más contundente: jefe SIEMPRE suelta
+  // un Cofre de Jefe real (chest.glb del kit de nieve) garantizado.
+  if (e.type === 'boss') spawnBossChest(e.group.position.clone(), e.kind.color);
+  else if (e.elite && rnd() < .45 + skillManager.chestBonus()) spawnLootBox(e.group.position.clone());
   $('hitmarker').className = 'show kill'; setTimeout(() => $('hitmarker').className = '', 140);
-  if (e.type === 'boss') { fx.hitstop(140); fx.slowmo(900, .3); fx.flash(settings.flash ? '#ffffff' : 'transparent', settings.flash ? .55 : 0, 320); }
+  if (e.type === 'boss') {
+    // Hit-stop de 0.4 s + explosión dorada de partículas reales del pack.
+    fx.hitstop(400); fx.slowmo(1200, .28);
+    fx.flash(settings.flash ? '#ffe9a8' : 'transparent', settings.flash ? .5 : 0, 320);
+    const p = e.group.position.clone().add(new THREE.Vector3(0, 2.2, 0));
+    combatParticles?.emit('star_04.png', p, {
+      count: 64, color: 0xffc94d, color2: 0xfff3c0, size: 1.4, life: 1.15,
+      speed: 7.5, spread: 3.4, gravity: -1.4
+    });
+    combatParticles?.emit('circle_05.png', e.group.position.clone().add(new THREE.Vector3(0, .4, 0)), {
+      count: 18, color: 0xffbf47, size: 2.2, life: .8, speed: 3.2, spread: 2.6, gravity: 0
+    });
+    playSfx('scifi/explosionCrunch_000.ogg', { volume: .6, pitch: 1.18 });
+    diagBoss.hitstop = .4;
+    hideBossBanner();
+  }
   else if (e.elite) { fx.hitstop(60); fx.flash(settings.flash ? '#ffbf47' : 'transparent', settings.flash ? .16 : 0, 140); }
   if (e.type === 'boss') {
     $('boss-wrap').classList.add('hidden');
@@ -3140,7 +3697,11 @@ function hurt(amount, source) {
   // GUARDIÁN: una capa de energía absorbe una parte fija de cada golpe.
   const wLvl = abilityLevel('ward');
   if (wLvl > 0) amount *= 1 - (.08 + .05 * wLvl);
-  let dmg = amount * state.damageTaken;
+  // Pactos malditos, coraza de espinas, reloj roto, grito de guerra, escudo
+  // de energía y resurrección del Fénix Oscuro entran por un único hook.
+  const hk = skillManager.emit('hurt', { amount, source });
+  if (hk.absorbed || hk.revived) return;
+  let dmg = amount * state.damageTaken * (hk.mult ?? 1);
   state.lastHit = { amount: Math.round(dmg), by: source || 'hostil', wave: state.wave, at: Date.now() };
   state.runTaken += dmg;
   // Para el logro INTOCABLE: ¿hay un jefe vivo mientras recibes daño?
@@ -3251,6 +3812,8 @@ function updateLobs(dt) {
   }
 }
 function enemyShoot(e, radial = false) {
+  // Fase 2: clip de ataque real (o estocada procedural en piezas rígidas).
+  e.creature?.attack();
   const start = e.group.position.clone().add(new THREE.Vector3(0, 1.4 * e.group.scale.y, 0));
   const count = radial ? 12 : 1;
   for (let i = 0; i < count; i++) {
@@ -3514,6 +4077,10 @@ function dash() {
   if (keys.KeyD) state.dashDir.add(r); if (keys.KeyA) state.dashDir.sub(r);
   if (state.dashDir.lengthSq() === 0) state.dashDir.copy(f);
   state.dashDir.normalize();
+  // Abrojos, explosión de teletransporte, forma de niebla y rastro de fuego.
+  const dashFrom = player.position.clone();
+  const dashTo = dashFrom.clone().addScaledVector(state.dashDir, 6);
+  skillManager.emit('dash', { from: dashFrom, to: dashTo });
   spawnSlideTrail();
   audio.dash();
   // Efecto de cámara del dash: empuje de FOV, cabeceo y líneas de velocidad.
@@ -3846,6 +4413,60 @@ function animateBossModel(e, dt) {
   if (u.cannon) u.cannon.position.z = (u.cannon.userData.baseZ ?? (u.cannon.userData.baseZ = u.cannon.position.z)) - casting * .35;
 }
 
+// ------------------------------------------------- avisos de ataque (Fase 3)
+// Avido rojo de 1.0 s EXACTO antes de cada patrón. Círculos con el sprite real
+// circle_05.png y cargas/haces con franjas semitransparentes. Se anima la
+// OPACIDAD (sin cambios de color ni pulsos continuos) para no fatigar la vista.
+const bossTelegraphs = [];
+const diagBoss = { telegraphs: 0, casts: 0, combos: 0, phaseUps: 0, chests: 0, hitstop: 0 };
+function addTelegraph(t) {
+  const root = new THREE.Group();
+  root.position.set(t.x, .085, t.z);
+  root.rotation.y = -(t.angle || 0);
+  const tex = combatParticles?.getSpriteTexture(t.sprite || 'circle_05.png') || null;
+  let mesh;
+  if (t.shape === 'bar') {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff3b2f, transparent: true, opacity: .16,
+      side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    mesh = new THREE.Mesh(HAZ_PLANE, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.scale.set(t.len || 10, t.w || 2, 1);
+    mesh.position.set((t.len || 10) / 2, 0, 0);
+  } else {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff3b2f, map: tex || undefined, transparent: true, opacity: .34,
+      side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    mesh = new THREE.Mesh(HAZ_CIRC, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.scale.setScalar(t.r || 3);
+  }
+  root.add(mesh);
+  scene.add(root);
+  const rec = { root, mesh, t: t.t, max: t.t, shape: t.shape, bar: t.shape === 'bar' };
+  bossTelegraphs.push(rec);
+  return rec;
+}
+function clearTelegraphs() {
+  for (const t of bossTelegraphs) { scene.remove(t.root); t.mesh.material.dispose(); }
+  bossTelegraphs.length = 0;
+}
+function updateTelegraphs(dt) {
+  for (let i = bossTelegraphs.length - 1; i >= 0; i--) {
+    const t = bossTelegraphs[i];
+    t.t -= dt;
+    const k = 1 - Math.max(0, t.t) / t.max;
+    // Se cierra justo al impactar: 0.16 -> 0.52, sin ciclos infinitos.
+    t.mesh.material.opacity = (t.bar ? .16 : .30) + k * .34;
+    if (t.t <= 0) {
+      scene.remove(t.root); t.mesh.material.dispose();
+      bossTelegraphs.splice(i, 1);
+    }
+  }
+}
+
 // ------------------------------------------------------------- peligros de jefe
 // Zonas de daño persistentes y SIEMPRE telegrafiadas: primero se dibuja la
 // amenaza en el suelo y después pega. El jugador puede leerlas y salir.
@@ -3980,7 +4601,8 @@ function meleeAttack() {
     hitAny = true;
     e.lastHitBy = 'melee';
     damageEnemy(e, dmgBase, false);
-    e.knock = Math.max(e.knock || 0, m.knock);
+    skillManager.emit('hit', { enemy: e, pos: e.group.position, crit: false, melee: true });
+    e.knock = Math.max(e.knock || 0, m.knock * skillManager.areaMult());
     e.lastHitBy = 'melee';
     const ep = e.group.position.clone().add(new THREE.Vector3(0, 1.2 * e.group.scale.y, 0));
     combatParticles?.preset(selectedCharacter, 'impact', ep, dir, {});
@@ -4258,34 +4880,68 @@ function updateObjective(dt) {
 // fase: al cambiar de fase el jefe se vuelve más rápido y añade una habilidad.
 function bossPhaseUp(e) {
   e.invuln = .9;
-  e.speed *= 1.12;
-  e.abilityTimer = Math.min(e.abilityTimer, 1.4);
-  announce(e.phaseIdx === 2 ? 'FASE FINAL: ' + e.kind.name : 'FASE ' + (e.phaseIdx + 1) + ': ' + e.kind.name);
-  spawnBurst(e.group.position.clone().add(new THREE.Vector3(0, 2.4, 0)), C.coral, 34, 7);
-  ringPulse(e.group.position.clone(), C.coral, 9, .7);
-  state.shake = Math.max(state.shake, .5);
+  // +25% de velocidad de ataque (y el patrón siguiente se combina).
+  e.speed *= 1.25;
+  e.abilityTimer = Math.min(e.abilityTimer, .8);
+  announce('FASE 2 // ' + e.kind.name + ' // ' + e.kind.title);
+  const p = e.group.position.clone().add(new THREE.Vector3(0, 2.2, 0));
+  // Rugido/destello rojo: explosionCrunch con pitch bajo.
+  playSfx('scifi/explosionCrunch_000.ogg', { volume: .55, pitch: .62 });
+  combatParticles?.emit('flame_01.png', p, {
+    count: 40, color: 0xff3b2f, size: 1.5, life: .9, speed: 7, spread: 3.2, gravity: -.5
+  });
+  combatParticles?.emit('smoke_07.png', p, {
+    count: 16, color: 0x6b1010, size: 1.3, life: 1.1, speed: 3, spread: 2.6, gravity: .3
+  });
+  spawnBurst(p, 0xff3b2f, 44, 9);
+  ringPulse(e.group.position.clone(), 0xff3b2f, 11, .8);
+  state.shake = Math.max(state.shake, .65);
   audio.tone(90, .4, 'sawtooth', .2, -40);
   e.flash = .3;
+  e.creature?.attack();
+  const ph = $('boss-phase'); if (ph) ph.textContent = 'FASE 2';
+  diagBoss.phaseUps++;
 }
 function bossAbilityList(e) {
-  // Fase 0 usa dos habilidades; la fase final las usa todas.
+  // Fase 1: 2 patrones. Fase 2: los 3, y cada cast combina uno extra.
   const all = e.kind.abilities;
-  return e.phaseIdx >= 2 ? all : e.phaseIdx === 1 ? all.slice(0, 2) : all.slice(0, 2);
+  return e.phaseIdx >= 1 ? all : all.slice(0, 2);
+}
+/**Avido en el suelo 1.0 s antes del impacto. `circle_05.png` para zonas
+ *  circulares y franja semitransparente para cargas/haces. */
+function addBossTelegraph(t) {
+  const node = addTelegraph(t);
+  diagBoss.telegraphs++;
+  return node;
 }
 function startBossCast(e) {
   const list = bossAbilityList(e);
-  e.telegraphId = list[e.abilityIdx % list.length];
+  const id = list[e.abilityIdx % list.length];
+  e.telegraphId = id;
   e.abilityIdx++;
-  const info = BOSS_ABILITIES[e.telegraphId];
-  e.telegraphT = e.kind.telegraph * (e.phaseIdx >= 2 ? .75 : 1);
+  const info = BOSS_ABILITIES[id];
+  // El aviso SIEMPRE dura 1.0 s: es la ventana de reacción para hacer Dash.
+  e.telegraphT = Math.max(.9, Math.min(1.4, Number(e.kind.telegraph) || 1));
   e.telegraphMax = e.telegraphT;
   if (info) announce('⚠ ' + info.name);
-  // Telegrafía visual en el suelo, antes de que la habilidad exista.
-  groundMark(e.group.position.clone(), C.coral, 5.5, e.telegraphT, .5);
+  const P = e.group.position, PP = player.position;
+  const yaw = Math.atan2(PP.x - P.x, PP.z - P.z);
+  const linear = id === 'charge' || id === 'beamSweep' || id === 'laserCross';
+  const targeted = id === 'verdict' || id === 'collapse' || id === 'gravityWell' || id === 'acidPool';
+  if (linear) {
+    addBossTelegraph({ shape: 'bar', x: P.x, z: P.z, angle: yaw, len: id === 'charge' ? 26 : 22, w: id === 'laserCross' ? 2.2 : 3.0, t: e.telegraphT });
+  } else if (targeted) {
+    const r = id === 'collapse' ? 13 : id === 'gravityWell' ? 15 : id === 'acidPool' ? 3.0 : 3.6;
+    addBossTelegraph({ shape: 'circle', x: PP.x, z: PP.z, r, t: e.telegraphT, sprite: 'circle_05.png' });
+  } else {
+    addBossTelegraph({ shape: 'circle', x: P.x, z: P.z, r: 5.6, t: e.telegraphT, sprite: 'circle_05.png' });
+  }
+  e.creature?.attack();
 }
-function bossCast(e, id) {
+function bossCast(e, id, combo = false) {
   const P = e.group.position, PP = player.position.clone();
   const dmg = 14 * e.dmgMult;
+  if (!combo) diagBoss.casts++;
   switch (id) {
     case 'barrage':
       enemyShoot(e, true); announce('ANDANADA'); break;
@@ -4364,6 +5020,16 @@ function bossCast(e, id) {
     }
     default: break;
   }
+  // FASE 2: combina el patrón con un segundo de la lista del jefe. Ambos
+  // han sido avisados en el suelo 1.0 s antes de llegar.
+  if (!combo && e.phaseIdx >= 1 && e.kind.abilities.length > 1) {
+    const extra = e.kind.abilities[(e.abilityIdx + 1) % e.kind.abilities.length];
+    diagBoss.combos++;
+    playSfx('scifi/forceField_000.ogg', { volume: .22, pitch: .88 });
+    setTimeout(() => {
+      if (!e.dead && state.mode === 'playing' && enemies.includes(e)) bossCast(e, extra, true);
+    }, 240);
+  }
 }
 // Proyectil suelto (lo usan las habilidades que no son el disparo estándar).
 function pushBolt(from, dir, speed, damage, color, homing = false) {
@@ -4374,14 +5040,26 @@ function pushBolt(from, dir, speed, damage, color, homing = false) {
 function updateBoss(e, dt, dist, flat, slowMul) {
   if (e.spawn > 0) return;
   const hpf = Math.max(0, e.hp / e.maxHp);
-  const want = hpf <= .34 ? 2 : hpf <= .67 ? 1 : 0;
+  // FASE 2 exactamente al 50% de vida (una sola transición).
+  const want = hpf <= .5 ? 1 : 0;
   if (want > e.phaseIdx) { e.phaseIdx = want; bossPhaseUp(e); }
   if (e.invuln > 0) e.invuln -= dt;
   if (e.dying) return;
 
-  // Animación propia del modelo: anillos, pods y fragmentos.
-  if (e.group.userData.spinners) for (const s of e.group.userData.spinners) s.o.rotation[s.axis] += s.speed * dt;
-  if (e.group.userData.bobbers) for (const b of e.group.userData.bobbers) b.o.position.y = b.base + Math.sin(state.time * b.speed) * b.amp;
+  // Los jefes también miran al héroe: sus GLB reales tienen el frente en +Z.
+  // Antes no se giraban nunca y cargaban de espaldas.
+  e.group.rotation.y = Math.atan2(flat.x, flat.z);
+
+  // Animación REAL del GLB (mixer propio) o del kitbash de piezas reales.
+  if (e.creature) {
+    e.creature.update(dt, {
+      moving: dist > 3.6,
+      flying: !!e.kind.flyer,
+      speed: e.speed,
+      speedScale: (.7 + Math.min(1.1, e.speed / 4)) * (e.phaseIdx ? 1.25 : 1)
+    });
+  }
+  animateBossKitbash(e.group, state.time, dt, e.telegraphT > 0);
   animateBossModel(e, dt);
 
   // Embestida: primero corre, y si te alcanza te tira.
@@ -4401,7 +5079,8 @@ function updateBoss(e, dt, dist, flat, slowMul) {
   // Rotación de habilidades con telegrafía.
   if (e.telegraphT > 0) {
     e.telegraphT -= dt;
-    if (e.telegraphT <= 0) { bossCast(e, e.telegraphId); e.telegraphId = null; e.abilityTimer = 4.6 - e.phaseIdx * .9; }
+    // Fase 2 = +25% de frecuencia de ataque (4.6 s -> 3.45 s).
+    if (e.telegraphT <= 0) { bossCast(e, e.telegraphId); e.telegraphId = null; e.abilityTimer = 4.6 * (e.phaseIdx ? .75 : 1); }
     return;
   }
   e.abilityTimer -= dt;
@@ -4482,6 +5161,8 @@ function separateEnemies() {
 // Contacto de un hostil: aplica el daño y dispara los afijos que reaccionan
 // al golpe (GÉLIDO ralentiza, VOLTAICO descarga un arco).
 function enemyTouch(e, dmg) {
+  // Fase 2: el golpe melé también reproduce el clip/estocada del GLB.
+  e.creature?.attack();
   hurt(dmg, e.type);
   if (e.affixes) for (const f of e.affixes) if (f.onHit) f.onHit(e, AFFIX_API);
 }
@@ -4489,9 +5170,16 @@ function enemyTouch(e, dmg) {
 function updateEnemies(dt) {
   let alive = 0, boss = null;
   updateBossHazards(dt);
+  updateTelegraphs(dt);
   // Los hostile caídos salen del array: si no, se acumulan toda la partida y todos los
   // bucles (disparo, habilidades, radar) recorren cadáveres sin necesidad.
   for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].dead) enemies.splice(i, 1);
+  // --- Fase 2: steering Boids + aura de élite ------------------------------
+  // El aura del Dron Escudero se RESETEA cada frame y se vuelve a aplicar en
+  // tickWorldElite(): si el dron muere, la protección desaparece al instante.
+  for (const e of enemies) e.shieldGuard = 0;
+  creatureFrame++;
+  applyBoids(enemies, player.position, dt);
   const chrono = state.overdrive > 0 ? Math.max(.3, 1 - .35 * abilityLevel('chrono')) : 1;
   for (const e of enemies) {
     if (e.dead) continue; alive++; if (e.type === 'boss') boss = e;
@@ -4507,6 +5195,14 @@ function updateEnemies(dt) {
       }
     }
     if (e.slow > 0) e.slow -= dt;
+    // El Chamán del Bosque acelera a sus aliados 3 s; aquí se devuelve la
+    // velocidad base sin tocar la lógica de oleadas ni de afijos.
+    if (e.boostT > 0) {
+      e.boostT -= dt;
+      if (e.boostT <= 0 && e.baseSpeed) e.speed = e.baseSpeed;
+    }
+    // --- ÉLITE EXCLUSIVO DEL BIOMA (7 mecánicas con sprites/audio reales) --
+    if (e.eliteKind) { tickWorldElite(e, dt, ELITE_API); if (e.dead) continue; }
     // Afijos con comportamiento continuo (VACÍO se teletransporta, etc.).
     if (e.affixes) for (const f of e.affixes) if (f.onTick) f.onTick(e, AFFIX_API, dt);
     if (e.shield < e.shieldMax) { e.shieldTimer -= dt; if (e.shieldTimer <= 0) e.shield = Math.min(e.shieldMax, e.shield + 12 * dt); }
@@ -4518,21 +5214,26 @@ function updateEnemies(dt) {
     if (e.type !== 'flyer' && e.type !== 'drone') applyDetour(e, flat, dt);
     // Retroceso al recibir un impacto: hace que cada disparo se sienta.
     if (e.knock > 0) { e.group.position.addScaledVector(flat, -e.knock * dt * 14); e.knock = Math.max(0, e.knock - dt * 3.4); }
-    e.group.rotation.y = Math.atan2(-flat.x, -flat.z);
+    // Los GLB reales tienen el FRONT en +Z. `flat` apunta del enemigo al
+    // héroe, así que el yaw es atan2(flat.x, flat.z): con el signo negado
+    // (versión Fase 2) los modelos venían de espaldas.
+    e.group.rotation.y = Math.atan2(flat.x, flat.z);
     e.phase += dt; e.cooldown -= dt;
     const heightGap = state.py - e.y;
     let slowMul = (e.slow > 0 ? (e.slowFactor || .5) : 1) * chrono;
 
     if (e.type === 'flyer') {
       e.dive -= dt;
-      const wantY = e.dive <= 0 ? state.py + 1.1 : e.hover;
+      // Fase 2: los voladores patrullan a Y=1.8 (ignoran obstáculos bajos y
+      // proyectan sombra real en el suelo) y sólo descienden en la picada.
+      const wantY = state.py + (e.dive <= 0 ? 1.1 : 1.8);
       e.y += (wantY - e.y) * Math.min(1, dt * 2.4);
       if (e.dive <= -2.2) e.dive = 4 + rnd() * 3;
       e.group.position.addScaledVector(flat, e.speed * slowMul * dt);
       if (e.cooldown <= 0 && dist < 26) { enemyShoot(e); e.cooldown = 1.5 + rnd() * .6; }
       if (e.group.userData.wingL) { const f = Math.sin(state.time * 16) * .5; e.group.userData.wingL.rotation.z = .32 + f; e.group.userData.wingR.rotation.z = -.32 - f; }
     } else if (e.type === 'drone') {
-      e.y += ((state.py + 1.3) - e.y) * Math.min(1, dt * 3);
+      e.y += ((state.py + 1.8) - e.y) * Math.min(1, dt * 3);
       e.group.position.addScaledVector(flat, e.speed * slowMul * dt);
       if (e.group.userData.rotor) e.group.userData.rotor.rotation.z += dt * 22;
       if (dist < 1.9 && Math.abs(heightGap) < 2.2) {
@@ -4602,13 +5303,13 @@ function updateEnemies(dt) {
       }
       if (e.type === 'tank') {
         e.charge -= dt;
-        if (dist < 14 && dist > 4 && e.charge <= 0 && e.armor <= 0) { e.charge = 5 + rnd() * 3; e.charging = .8; }
+        if (dist < 14 && dist > 4 && e.charge <= 0 && e.armor <= 0) { e.charge = 5 + rnd() * 3; e.charging = .8; e.creature?.charge(); }
         if (e.charging > 0) { e.charging -= dt; spd *= e.charging > .3 ? 0 : 4.2; }
       }
       // EL BRUTO embiste más lejos y más rápido cuando pierde el blindaje.
       if (e.type === 'brute') {
         e.charge -= dt;
-        if (dist < 20 && dist > 5 && e.charge <= 0 && e.armor <= 0) { e.charge = 6 + rnd() * 3; e.charging = 1.0; }
+        if (dist < 20 && dist > 5 && e.charge <= 0 && e.armor <= 0) { e.charge = 6 + rnd() * 3; e.charging = 1.0; e.creature?.charge(); }
         if (e.charging > 0) { e.charging -= dt; spd *= e.charging > .35 ? .2 : 5.6; }
       }
       // EL ESPECTRO se desplaza en cortos: aparece a tu espalda sin avisar.
@@ -4680,6 +5381,25 @@ function updateEnemies(dt) {
       e.group.scale.setScalar(e.targetScale * (1 + k * .11));
       e.group.rotation.y += k * .06;
     } else if (e.group.scale.x !== e.targetScale) e.group.scale.setScalar(e.targetScale);
+    // --- Fase 2: AnimationMixer real (idle/walk/run/fly/attack/hit/death) o
+    // animación procedural de respaldo para las piezas rígidas de Kenney.
+    const cv = e.creature;
+    if (cv) {
+      // LOD: los hostiles lejanos actualizan su mixer a 30 Hz (dt × 2 en
+      // frames alternos). A 30 criaturas en pantalla ahorra ~40% de CPU de
+      // animación sin que se perciba a esa distancia.
+      const near = dist < 18;
+      const parity = (creatureFrame + (e.orbitSign > 0 ? 1 : 0)) & 1;
+      if (near || !parity) cv.update(near ? dt : dt * 2, {
+        moving: moved > .35,
+        flying: e.archetype === 'flyer',
+        speed: moved,
+        speedScale: .7 + Math.min(1.4, moved / 4)
+      });
+      // La sombra real solo se dibuja para los hostiles cercanos: el pase de
+      // sombras deja de escalar con el tamaño total de la horda.
+      if (cv.shadowCaster) cv.shadowCaster.castShadow = dist < 24;
+    }
   }
   // Los hostiles dejan de apilarse y ninguno atraviesa la utilería.
   separateEnemies();
@@ -4691,6 +5411,9 @@ function updateEnemies(dt) {
     // Los objetivos alternativos implosionan a los remanentes al completarse.
     if (alive > 0) for (const e of enemies) if (!e.dead) damageEnemy(e, 99999, false);
     const bonusOk = objectiveMet();
+    // Fin de sala: limpia proyectiles, reinicia cooldowns y quita escudos
+    // temporales. Los cooldowns dejan de correr hasta la siguiente oleada.
+    skillManager.onRoomClear();
     state.mode = 'transition'; state.score += state.wave * 250 * currentLevel.rewardMult * state.scoreMult * (bonusOk ? 1 : .7);
     state.chips += 40 + state.wave * 10;
     if (bonusOk && state.obj && state.obj.id !== 'purge') {
@@ -4748,6 +5471,7 @@ function updateProjectiles(dt) {
 
 // ---------------------------------------------------------------- HUD
 function updateHUD() {
+  renderSkillHud();
   $('score').textContent = String(Math.round(state.score)).padStart(6, '0');
   $('combo').textContent = '×' + state.combo.toFixed(2) + ' SINCRONÍA';
   $('hp-number').textContent = Math.ceil(state.hp);
@@ -4789,33 +5513,9 @@ function updateHUD() {
       objEl.classList.remove('hidden');
     } else objEl.classList.add('hidden');
   }
+  // El viejo "#loadout" de familias/módulos/pactos se elimina del HUD.
   if (hudDirty) {
-    const parts = [];
-    // Familias del build: nivel total acumulado y estrella si la resonancia
-    // de set está encendida. Es la lectura rápida de "qué build llevas".
-    for (const f in state.familyLevels) {
-      const def = FAMILIES[f], lv = state.familyLevels[f];
-      if (!def || !lv) continue;
-      const star = state.resonances.includes(f + ':t2') ? 2 : state.resonances.includes(f + ':t1') ? 1 : 0;
-      parts.push(`<span class="fam" style="border-color:${def.color};color:${def.color}">${def.icon} ${def.name} <b>${lv}${star ? ' ' + '★'.repeat(star) : ''}</b></span>`);
-    }
-    for (const p of state.pacts) parts.push(`<span class="pact-chip" style="border-color:${p.color};color:${p.color}">${p.icon} ${p.curse}</span>`);
-    for (const id in state.abilities) {
-      const a = ABILITIES.find(x => x.id === id); if (!a) continue;
-      parts.push(`<span style="border-color:${a.color};color:${a.color}">${a.icon} ${a.name} <b>${state.abilities[id]}</b></span>`);
-    }
-    for (const id in lootLevels) {
-      const l = BOOSTS.find(x => x.id === id); if (!l || !lootLevels[id]) continue;
-      parts.push(`<span style="border-color:${l.color};color:${l.color}">${l.icon} ${l.name} <b>${lootLevels[id]}</b></span>`);
-    }
-    for (const s of activeSynergies()) parts.push(`<span class="syn" style="border-color:${s.color};color:${s.color}">◈ ${s.name}</span>`);
-    // Techo de chips: con builds muy cargadas la tira tapaba media pantalla.
-    if (parts.length > 14) {
-      const extra = parts.length - 13;
-      parts.length = 13;
-      parts.push(`<span class="more">+${extra} MÁS</span>`);
-    }
-    $('loadout').innerHTML = parts.length ? '<small>ARSENAL</small>' + parts.join('') : '';
+    const lo = $('loadout'); if (lo) lo.innerHTML = '';
     hudDirty = false;
   }
 }
@@ -4841,113 +5541,74 @@ function updateRadar() {
 // --- borrador de módulos --------------------------------------------------
 // Sustituye al draft genérico de mejoras: ahora cada carta es un MÓDULO de una
 // FAMILIA, con su nivel actual y aviso si va a desbloquear una evolución.
-function rollModuleOffers() {
-  const weight = (m) => m.rarity === 'COMÚN' ? 5 : m.rarity === 'RARA' ? 3 : 1.6;
-  // Sesgo hacia las familias ya empezadas: la build se vuelve coherente en vez
-  // de una sopa de bonificaciones sueltas.
-  const bias = (m) => 1 + (state.familyLevels[m.family] || 0) * .14;
-  const offers = [];
-  const pool = MODULES.filter(m => (state.modules[m.id] || 0) < m.max);
-  while (offers.length < 3 && pool.length > offers.length) {
-    const avail = pool.filter(m => !offers.includes(m));
-    if (!avail.length) break;
-    const ws = avail.map(m => weight(m) * bias(m));
-    let roll = rnd() * ws.reduce((a, b) => a + b, 0), idx = 0;
-    for (let i = 0; i < avail.length; i++) { roll -= ws[i]; if (roll <= 0) { idx = i; break; } }
-    offers.push(avail[idx]);
-  }
-  return offers;
-}
+// Generador de ofertas de MÓDULOS — ELIMINADO. El menú de fin de ronda solo
+// ofrece las 5 estadísticas base (STAT_UPGRADES). Las habilidades salen de
+// SkillManager.rollSkillCards() al subir de nivel.
 function renderBuild() {
   const c = CHARACTERS[selectedCharacter];
   $('build-character').textContent = c.name;
   $('build-character').style.color = c.hex;
   const stats = [['VIDA MÁXIMA', Math.round(state.maxHp)], ['DAÑO', Math.round(state.damage)], ['CADENCIA', (1 / (state.fireRate * currentWeapon().fireRate)).toFixed(1) + '/s'], ['VELOCIDAD', state.speed.toFixed(1)], ['CARGADOR', state.maxAmmo], ['REDUCCIÓN', Math.round((1 - state.damageTaken) * 100) + '%']];
   $('build-stats').innerHTML = stats.map(([n, v]) => `<div class="build-stat"><span>${n}</span><b>${v}</b></div>`).join('');
-  // Familias: nivel total y estrella si la resonancia está encendida.
-  const fams = Object.keys(FAMILIES).map(f => {
-    const lv = state.familyLevels[f] || 0;
-    if (!lv) return '';
-    const def = FAMILIES[f];
-    const star = state.resonances.includes(f + ':t2') ? 2 : state.resonances.includes(f + ':t1') ? 1 : 0;
-    const next = RESONANCES[f];
-    const goal = star === 0 ? next.t1.at : star === 1 ? next.t2.at : 0;
-    return `<div class="build-fam" style="--fam:${uiGem(def.color)}"><span>${def.icon} ${def.name}</span><b>${lv}${star ? ' <i>★' + star + '</i>' : goal ? ' <i>→' + goal + '</i>' : ''}</b></div>`;
+  // Resumen del catálogo unificado: 6 slots + reliquias/pactos + sinergias.
+  const snap = skillManager.snapshot();
+  const skillRows = snap.slots.map(s =>
+    `<div class="build-mod" style="--fam:${uiGem(HERO_THEME[skillManager.hero]?.color)}"><span>${s.name}</span><b>NVL ${s.level}/5</b></div>`).join('');
+  const lootRows = [...snap.relics, ...snap.pacts].map(id => {
+    const it = itemById(id); if (!it) return '';
+    const col = it.type === 'pact_relic' ? RARITY.MALDITO.color : '#9a8ce8';
+    return `<div class="build-mod" style="--fam:${uiGem(col)}"><span>${it.name}</span><b>${it.type === 'pact_relic' ? 'PACTO' : 'RELIQUIA'}</b></div>`;
   }).join('');
-  const modRows = MODULES.filter(m => state.modules[m.id]).map(m =>
-    `<div class="build-mod" style="--fam:${uiGem(FAMILIES[m.family].color)}"><span>${m.icon} ${m.name}</span><b>${state.modules[m.id]}/${m.max}</b></div>`).join('');
-  const extra = Object.keys(state.abilities).map(k => { const a = ABILITIES.find(x => x.id === k); return `<div class="build-mod"><span>${a.name}</span><b>NV.${state.abilities[k]}</b></div>`; }).join('');
-  const pactRows = state.pacts.map(p => `<div class="build-mod pact"><span>${p.icon} ${p.name}</span><b>${p.curse}</b></div>`).join('');
-  // Reliquias: una línea por pieza, con su regla resumida.
-  const relicRows = (state.relics || []).map(id => {
-    const r = relicById(id); if (!r) return '';
-    return `<div class="build-mod relic" style="--fam:${uiGem(r.color)}"><span>${r.icon} ${r.name}</span><b>${r.tier}</b></div>`;
+  const synRows = snap.synergies.map(id => {
+    const it = itemById(id);
+    return `<div class="build-mod" style="--fam:${uiGem(RARITY.SINERGIA.color)}"><span>◈ ${it?.name || id}</span><b>SINERGIA</b></div>`;
   }).join('');
-  $('build-mods').innerHTML = (fams + modRows + pactRows + relicRows + extra) || 'SIN MUTACIONES';
+  $('build-mods').innerHTML = (skillRows + synRows + lootRows) || 'SIN MEJORAS TODAVÍA';
 }
 function showUpgradeDraft() {
+  // FUENTE 3 — Fin de ronda / oleada: SOLO las 5 mejoras de estadísticas base.
+  // Se eliminan por completo los módulos, las habilidades antiguas y la oferta
+  // de pactos que antes aparecían en este menú.
   state.mode = 'upgrade'; document.exitPointerLock?.();
-  currentOffers = rollModuleOffers();
-  const pact = offerPact();
-  currentPacts = pact ? [pact] : [];
+  $('upgrade')?.classList.add('stats-only');
+  currentOffers = STAT_UPGRADES.map(s => ({ ...s }));
   renderBuild();
+  const modsLabel = document.querySelector('#upgrade .build-mods > small');
+  if (modsLabel) modsLabel.textContent = 'PROGRESIÓN ACTIVA';
   $('next-wave').textContent = String(state.wave + 1).padStart(2, '0');
-  $('reroll-count').textContent = rerolls + ' RESTANTES';
-  $('reroll-btn').disabled = rerolls <= 0;
-  $('upgrade-options').innerHTML = currentOffers.map(m => {    const level = state.modules[m.id] || 0;
-    const fam = FAMILIES[m.family];
-    // Aviso de bendición: si esta carta satura el don, el arma ÚNICA del héroe
-    // gana daño y cadencia. Ya no depende de tener un arma base de botín.
-    const evo = EVOLUTIONS.find(e => e.need === m.id && !state.weaponEvolved?.[e.id] && level + 1 >= m.max);
-    return `<button class="upgrade-choice" data-offer="${m.id}" style="--rarity:${uiGem(fam.color)}">`
-      + `<span class="upgrade-icon" style="color:${uiGem(fam.color)}">${m.icon}</span>`
-      + `<span class="upgrade-copy"><small style="color:${uiGem(fam.color)}">${fam.name} // ${m.rarity}</small><b>${m.name}</b><span>${m.desc}</span>`
-      + (evo ? `<em class="evo-tag">▲ BENDICIÓN: ${evo.name}</em>` : '')
-      + `</span><span class="upgrade-level">${level ? 'NIVEL' : 'NUEVO'}<b>${level + 1}/${m.max}</b></span></button>`;
-  }).join('');
-  // Salvaguarda: si TODOS los módulos están saturados (modo infinito muy largo),
-  // la ronda tiene que poder cerrarse igualmente.
-  if (!currentOffers.length) {
-    $('upgrade-options').innerHTML = `<button class="upgrade-choice" data-skip="1" style="--rarity:#ffcf4a">`
-      + `<span class="upgrade-icon" style="color:#ffcf4a">✓</span>`
-      + `<span class="upgrade-copy"><small style="color:#ffcf4a">EQUIPO // COMPLETO</small><b>TODOS LOS DONES AL MÁXIMO</b>`
-      + `<span>No queda nada que instalar. Cierra la ronda y sigue acumulando chips.</span></span>`
-      + `<span class="upgrade-level">BONUS<b>+400</b></span></button>`;
-    document.querySelector('[data-skip]').onclick = () => {
-      state.chips += 400; audio.coin();
-      $('upgrade').classList.remove('active');
-      const pw = $('pact-offer'); if (pw) { pw.classList.remove('active'); pw.innerHTML = ''; }
-      updateHUD(); hudDirty = true; spawnWave(); lockPointer();
-    };
-  }
-  document.querySelectorAll('[data-offer]').forEach(b => b.onclick = () => chooseUpgrade(b.dataset.offer));
+  const rerollBtn = $('reroll-btn'); if (rerollBtn) rerollBtn.style.display = 'none';
+  const head = document.querySelector('#upgrade .upgrade-main h2');
+  if (head) head.innerHTML = 'MEJORA<br>DE ESTADÍSTICAS';
+  const desc = document.querySelector('#upgrade .upgrade-main > p');
+  if (desc) desc.textContent = 'Al cerrar la oleada solo se refinan los atributos base del héroe. Las habilidades llegan al subir de nivel y las reliquias y pactos, en los cofres.';
+  const eyebrow = document.querySelector('#upgrade .upgrade-main .eyebrow');
+  if (eyebrow) eyebrow.textContent = '// OLEADA COMPLETADA';
+  $('upgrade-options').innerHTML = currentOffers.map(st =>
+    `<button class="upgrade-choice stat-choice" data-offer="${st.id}" style="--rarity:${st.color}">`
+    + `<span class="upgrade-icon" style="color:${st.color}">${svgIcon(st.icon)}</span>`
+    + `<span class="upgrade-copy"><small style="color:${st.color}">ESTADÍSTICA BASE // PERMANENTE</small><b>${st.name}</b><span>${st.desc}</span></span>`
+    + `<span class="upgrade-level">MEJORA<b>+</b></span></button>`).join('');
+  document.querySelectorAll('#upgrade [data-offer]').forEach(b => b.onclick = () => chooseUpgrade(b.dataset.offer));
   renderPactOffer();
   updateSlotUI();
   $('upgrade').classList.add('active');
 }
-// El pacto es opcional: se acepta con un clic y se rechaza sin coste.
+// Los pactos antiguos ya NO se ofrecen al final de la ronda. Se mantiene el
+// contenedor vacío para no romper el layout ni las llamadas heredadas.
 function renderPactOffer() {
-  const wrap = $('pact-offer'); if (!wrap) return;
-  if (!currentPacts.length) { wrap.classList.remove('active'); wrap.innerHTML = ''; return; }
-  const p = currentPacts[0];
-  wrap.classList.add('active');
-  wrap.style.setProperty('--pact', p.color);
-  wrap.innerHTML = `<div class="pact-head"><small>// PACTO DE INTERFERENCIA</small><b>${p.icon} ${p.name}</b></div>`
-    + `<p>${p.desc}</p><span class="pact-curse">MALDICIÓN // ${p.curse}</span>`
-    + `<div class="pact-actions"><button id="pact-take">ACEPTAR</button><button id="pact-skip">RECHAZAR</button></div>`;
-  $('pact-take').onclick = () => { takePact(p.id); currentPacts = []; renderPactOffer(); };
-  $('pact-skip').onclick = () => { currentPacts = []; renderPactOffer(); audio.tone(300, .12, 'square', .07, -80); };
+  const wrap = $('pact-offer');
+  if (wrap) { wrap.classList.remove('active'); wrap.innerHTML = ''; }
 }
 function chooseUpgrade(id) {
   if (state.mode !== 'upgrade') return;
-  const m = moduleById(id); if (!m) return;
-  if (!installModule(id)) return;
+  if (!applyBaseStat(id)) return;
   audio.tone(240, .4, 'sawtooth', .12, 620);
   $('upgrade').classList.remove('active');
   const pw = $('pact-offer'); if (pw) { pw.classList.remove('active'); pw.innerHTML = ''; }
   updateHUD(); hudDirty = true; spawnWave(); lockPointer();
 }
-function rerollUpgrades() { if (state.mode === 'upgrade' && rerolls > 0) { rerolls--; audio.tone(420, .1, 'square', .08, -120); showUpgradeDraft(); } }
+// Ya no hay módulos que reconfigurar: el botón queda oculto y la función inerte.
+function rerollUpgrades() { /* menú de estadísticas: sin reconfiguración */ }
 
 // ---------------------------------------------------------------- tragaperras
 let spinning = false;
@@ -5049,12 +5710,15 @@ function resolveSlots(result) {
 function clearGame() {
   // Cada incursión se resiembra: botín, modificadores y críticos dejan de ser idénticos.
   reseed(Date.now() ^ Math.floor(Math.random() * 2147483646));
-  for (const e of enemies) { scene.remove(e.group); disposeObject3D(e.group); } enemies.length = 0;
+  // Fase 2: primero se liberan los AnimationMixer de cada criatura GLB;
+  // después se barren los grupos sin destruir geometrías compartidas.
+  clearCreatureCorpses();
+  for (const e of enemies) { disposeEnemyVisuals(e); scene.remove(e.group); disposeObject3D(e.group); } enemies.length = 0;
   for (const p of projectiles) { scene.remove(p.m); disposeObject3D(p.m); } projectiles.length = 0;
   for (const b of lootBoxes) { scene.remove(b.group); disposeObject3D(b.group); } lootBoxes.length = 0;
   for (const c2 of companions) { scene.remove(c2.group); disposeObject3D(c2.group); } companions.length = 0;
   for (const g2 of grenades) { scene.remove(g2.m); disposeObject3D(g2.m); } grenades.length = 0;
-  clearHazards();
+  clearHazards(); clearTelegraphs(); hideBossBanner();
   for (const h of hazards) { scene.remove(h.m); disposeObject3D(h.m); } hazards.length = 0;
   for (const m of mines) { scene.remove(m.m); disposeObject3D(m.m); } mines.length = 0;
   for (const l of lobs) { scene.remove(l.m); disposeObject3D(l.m); } lobs.length = 0;
@@ -5080,7 +5744,7 @@ function clearGame() {
 
   const c = CHARACTERS[selectedCharacter];
   const bonus = Meta.getBonuses(selectedCharacter);
-  currentOffers = []; currentPacts = []; lootLevels = {};
+  currentOffers = []; lootLevels = {};
   state.abilities = {}; state.timers = {};
   // Cada incursión vuelve a empuñar el arma única "de fábrica": las
   // bendiciones no se heredan entre partidas. Los pools se vacían pero NO se
@@ -5124,6 +5788,17 @@ function clearGame() {
   // ---- regla propia de cada operador nuevo --------------------------------
   // No son números sueltos: cada perk cambia una decisión dentro de la partida.
   applyOperatorPerk(c.perk);
+  // Cada incursión empieza con el catálogo unificado limpio: 0 slots,
+  // 0 reliquias, 0 pactos, 0 sinergias, XP a cero. Las zonas y torretas
+  // temporales se liberan para no arrastrar memoria entre partidas.
+  skillManager.reset(selectedCharacter);
+  SKILL_HOST.hero = selectedCharacter;
+  pendingLevelUps = 0;
+  _skillHudKey = '';
+  for (const z of skillZones) if (z.mesh) { scene.remove(z.mesh); z.mesh.geometry.dispose(); z.mesh.material.dispose(); }
+  skillZones.length = 0;
+  for (const t of skillTurrets) { scene.remove(t.group); disposeObject3D(t.group); }
+  skillTurrets.length = 0;
   syncWeaponHUD(); syncUtilityHUD();
   // La granada de serie entra en el códice desde el arranque; el arma única
   // se registra en startGame() con la clave real del héroe.
@@ -5151,7 +5826,7 @@ function startGame(daily = false) {
     announce('DESAFÍO DIARIO // SEMILLA ' + d.seed);
   }
   Meta.markSeen('weapons', CHARACTERS[selectedCharacter].weapon);
-  ['menu', 'hub', 'gameover', 'pause', 'upgrade', 'loot', 'buildsum', 'codex'].forEach(id => $(id) && $(id).classList.remove('active'));
+  ['menu', 'hub', 'gameover', 'pause', 'upgrade', 'cards', 'synergy-reveal', 'buildsum', 'codex'].forEach(id => $(id)?.classList.remove('active'));
   $('hud').classList.remove('hidden');
   fx.clear();
   spawnWave(); lockPointer();
@@ -5211,7 +5886,7 @@ function gameOver() {
 }
 function toMenu() {
   state.mode = 'menu'; clearGame(); music.stop(); fx.clear();
-  ['gameover', 'pause', 'upgrade', 'hub', 'loot'].forEach(id => $(id).classList.remove('active'));
+  ['gameover', 'pause', 'upgrade', 'hub', 'cards', 'synergy-reveal'].forEach(id => $(id)?.classList.remove('active'));
   $('hud').classList.add('hidden'); $('menu').classList.add('active');
   document.body.classList.remove('photo-mode'); state.photo = false;
   refreshMenuStats();
@@ -5269,7 +5944,7 @@ $('pause-menu-btn').onclick = () => openHub('operator');
 $('skills-btn-gameover').onclick = () => { $('gameover').classList.remove('active'); openHub('skills'); };
 $('wc-continue').onclick = () => { $('worldclear').classList.remove('active'); state.mode = 'transition'; showUpgradeDraft(); };
 $('wc-extract').onclick = () => { $('worldclear').classList.remove('active'); openHub('operator'); };
-$('loot-equip-btn').onclick = equipLoot;
+// Pantalla de botín antigua retirada: sin binding.
 $('quit-btn').onclick = () => window.desktop?.quit();
 $('fullscreen-btn').onclick = () => window.desktop?.fullscreen();
 $('reroll-btn').onclick = rerollUpgrades;
@@ -5464,6 +6139,8 @@ function simStep(dt) {
   updatePlayer(dt); updateEnemies(dt); updateProjectiles(dt); updateGrenades(dt);
   updateCompanions(dt); updateLoot(dt); updateAbilities(dt); updateHazards(dt); updateLobs(dt); updateDots(dt); updateRelicSystems(dt);
   updateUtility(dt); updateCat(dt); updateObjective(dt); updateDirector(dt); updateExecuteMarker(dt);
+  // Cooldowns de habilidades, orbes de XP, auras y geometrías con pooling.
+  updateSkills(dt);
 }
 function animate() {
   requestAnimationFrame(animate);
@@ -5531,6 +6208,9 @@ function animate() {
   // lenta); las partículas usan el tiempo real para no congelarse en un golpe.
   combatProjectiles?.update(dt);
   combatParticles?.update(raw);
+  // Fase 2: los cadáveres GLB siguen su clip de muerte con tiempo REAL (no se
+  // congelan con el hitstop) y se devuelven al pool al terminar.
+  updateCreatureCorpses(raw);
   vfx.update(dt);
   fx.update(camera, raw);
   // ---- estado que alimenta el pase cinematográfico ------------------------
@@ -5603,6 +6283,71 @@ natureBoot.then((diag) => {
 const weaponBoot = initWeapons();
 const vfxBoot = combatParticles.init();
 const sfxBoot = loadSfxBank();
+// --- Fase 2: precarga del roster COMPLETO de criaturas reales --------------
+// 51 modelos + la corona GLB de élite se parsean UNA sola vez al arrancar.
+// spawnWave() es síncrono: clona desde `resolved`. Si el jugador entra antes,
+// attachCreatureWhenReady() rellena el grupo en caliente sin bloquear la IA.
+setCreatureEventHandler((kind, pos) => {
+  if (kind === 'hit') {
+    playSfx('rpg/chop.ogg', { volume: .16, pitch: .92 + Math.random() * .18 });
+  } else if (kind === 'attack') {
+    playSfx('scifi/impactMetal_000.ogg', { volume: .10, pitch: 1.05 });
+  } else if (kind === 'smoke') {
+    combatParticles?.emit('smoke_07.png', pos, {
+      count: 10, color: 0xa8b0aa, size: .9, life: .65,
+      speed: 1.7, spread: 2.2, gravity: -.6
+    });
+  } else if (kind === 'death') {
+    playSfx('scifi/explosionCrunch_000.ogg', { volume: .09, pitch: 1.25 });
+  }
+});
+// --- Fase 3: los 21 jefes y el cofre real comparten la MISMA caché de plantillas.
+setBossEventHandler((kind, pos, kindDef) => {
+  const big = kindDef?.color || 0xffc94d;
+  if (kind === 'hit') {
+    playSfx('rpg/chop.ogg', { volume: .22, pitch: .78 + Math.random() * .16 });
+  } else if (kind === 'attack') {
+    playSfx('scifi/impactMetal_000.ogg', { volume: .16, pitch: .84 });
+  } else if (kind === 'smoke') {
+    combatParticles?.emit('smoke_07.png', pos, {
+      count: 14, color: 0xb0a49a, size: 1.2, life: .75,
+      speed: 2.2, spread: 2.8, gravity: -.5
+    });
+  } else if (kind === 'death') {
+    combatParticles?.emit('star_04.png', pos, {
+      count: 18, color: big, size: 1.0, life: .8, speed: 5, spread: 2.6, gravity: -1
+    });
+  }
+});
+creatureBoot = Promise.all([
+  preloadCreatureRoster([...allEnemySpecs(), ...allBossSpecs()]),
+  initEnemyShadows()
+])
+  .then(([roster]) => {
+    enemiesReady = roster.failed === 0;
+    window.__NR_ENEMIES_READY = enemiesReady;
+    window.__NR_BOSSES_READY = enemiesReady;
+    window.__NR_ENEMIES = {
+      ...roster, roster: rosterDiagnostics(), models: enemyModelDiagnostics()
+    };
+    window.__NR_BOSSES = { ...bossModelDiagnostics(), ready: enemiesReady };
+    console.log('ENEMY_ASSETS: ' + JSON.stringify({
+      requested: roster.requested, loaded: roster.loaded,
+      failed: roster.failed, worlds: rosterDiagnostics().worlds,
+      instances: enemyModelDiagnostics().lib.instances
+    }));
+    console.log('BOSS_ASSETS: ' + JSON.stringify(window.__NR_BOSSES));
+    return roster;
+  })
+  .catch((err) => {
+    enemiesReady = false;
+    window.__NR_ENEMIES_READY = false;
+    window.__NR_BOSSES_READY = false;
+    window.__NR_ENEMIES = { error: String(err && err.message || err) };
+    window.__NR_BOSSES = { error: String(err && err.message || err) };
+    console.log('ENEMY_ASSETS_ERROR: ' + window.__NR_ENEMIES.error);
+    return null;
+  });
 Promise.all([weaponBoot, vfxBoot, sfxBoot]).then(([wd, vd, sd]) => {
   if (wd?.ok && player) attachWeapon(player, selectedCharacter);
   window.__NR_COMBAT_READY = !!(wd?.ok && vd?.ok && sd?.ok);
@@ -5633,6 +6378,9 @@ window.addEventListener('beforeunload', () => {
   disposeOperatorCache();
   disposeNatureKit();
   worldManager.dispose();
+  skillManager?.dispose();
+  clearCreatureCorpses();
+  disposeEnemyCache();
 });
 animate();
 
@@ -5656,7 +6404,10 @@ function testGod(on = true) {
   return { god: on, hp: state.hp };
 }
 function testClearEnemies() {
-  for (const e of enemies) { if (!e.dead) { e.dead = true; scene.remove(e.group); disposeObject3D(e.group); } }
+  clearCreatureCorpses(); clearTelegraphs(); hideBossBanner();
+  for (const e of enemies) {
+    if (!e.dead) { e.dead = true; disposeEnemyVisuals(e); scene.remove(e.group); disposeObject3D(e.group); }
+  }
   enemies.length = 0;
 }
 function testAbility(id) {
@@ -5906,7 +6657,7 @@ export function showcase(faction = 'SYNTEK') {
       const e = createEnemy(t, px, pz, false, faction);
       e.spawn = 0; e.speed = 0; e.cooldown = 99;
       e.group.scale.setScalar(e.targetScale);
-      e.group.rotation.y = Math.atan2(-(player.position.x - px), -(player.position.z - pz));
+      e.group.rotation.y = Math.atan2(player.position.x - px, player.position.z - pz);
       out.push(t);
     });
   });
@@ -5969,6 +6720,9 @@ function setWorldView(dist = 34, pitch = -.44, yaw = 0) {
   document.getElementById('upgrade')?.classList.remove('active');
   document.getElementById('pause')?.classList.remove('active');
   document.getElementById('worldclear')?.classList.remove('active');
+  document.getElementById('cards')?.classList.remove('active');
+  document.getElementById('synergy-reveal')?.classList.remove('active');
+  pendingLevelUps = 0;
   if (state.mode !== 'playing' && state.mode !== 'menu' && state.mode !== 'hub') state.mode = 'playing';
   return true;
 }
@@ -5987,6 +6741,185 @@ function worldDiagnostics() {
   };
 }
 
+// --- Hooks de QC del catálogo unificado (solo automatización) --------------
+function getSkillDiagnostics() { return skillManager.diagnostics(); }
+function testGrant(id) { return skillManager.grant(id, { force: true }); }
+function testSkillCards() { return skillManager.rollSkillCards(3).map(c => ({ id: c.id, type: c.type, hero: c.hero, nextLevel: c.nextLevel })); }
+function testChestCards() { return skillManager.rollChestCards(3).map(c => ({ id: c.id, type: c.type })); }
+function testLevelUp() { showCardChoice(skillManager.rollSkillCards(3), 'skill'); return document.querySelectorAll('#cards [data-card]').length; }
+function testOpenChest() { rollLoot(); return { mode: state.mode, cards: document.querySelectorAll('#cards [data-card]').length, synergy: !!document.getElementById('synergy-reveal')?.classList.contains('active') }; }
+function testChooseCard(id) { const btn = document.querySelector(`#cards [data-card="${id}"]`); if (btn) btn.click(); return skillManager.snapshot(); }
+function testCloseCards() { closeCards(); closeSynergy(); return state.mode; }
+/** QC: congela CUALQUIER carta de subida de nivel para poder fotografiar la
+ *  animación de muerte. Al matar 20 hostiles de golpe, los orbes de XP siguen
+ *  llegando al héroe y reabren "ELIGE HABILIDAD" incluso después de cerrarlo
+ *  (onLevelUp -> pendingLevelUps -> processSkillQueue). Se vacían los orbes,
+ *  se descarta la cola y se cierran todos los overlays de una vez. */
+function testFreezeLevelCards() {
+  skillManager.onRoomClear();       // limpia orbes, formas, proyectiles y timers
+  pendingLevelUps = 0;
+  closeCards(); closeSynergy();
+  ['upgrade', 'pause', 'worldclear', 'cards', 'synergy-reveal']
+    .forEach(id => $(id)?.classList.remove('active'));
+  clearTimeout(waveFlowTimer);
+  if (state.mode !== 'playing' && state.mode !== 'menu' && state.mode !== 'hub') state.mode = 'playing';
+  return true;
+}
+function testRoomClear() { return skillManager.onRoomClear(); }
+function testAddXp(n) { skillManager.addXp(n); return skillManager.xpInfo; }
+function testBaseStat(id) { return applyBaseStat(id); }
+
+// --- Diagnóstico FASE 2 (solo automatización --enemies) -------------------
+function enemyFase2Diagnostics() {
+  const byArchetype = { melee: 0, ranged: 0, tank: 0, flyer: 0 };
+  let withCreature = 0, mixers = 0, procedural = 0, elitesLive = 0, flyerY = null;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    if (byArchetype[e.archetype] !== undefined) byArchetype[e.archetype]++;
+    const cv = e.creature;
+    if (cv) { withCreature++; if (cv.usesMixer) mixers++; else procedural++; }
+    if (e.eliteKind) elitesLive++;
+    if (e.archetype === 'flyer' && flyerY === null) flyerY = +e.y.toFixed(2);
+  }
+  return {
+    ready: enemiesReady, world: enemyWorldId,
+    roster: rosterDiagnostics(), models: enemyModelDiagnostics(),
+    boids: { ...boidsDiagnostics }, elite: eliteDiagnostics(),
+    live: enemies.filter(e => !e.dead).length, byArchetype,
+    withCreature, mixers, procedural, elitesLive, flyerY,
+    corpses: creatureCorpses.length, corpseDiag: { ...corpseDiag },
+    groundShadow: 'realtime', inventedPrimitives: 0,
+    fps: perf.fps, drawCalls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles
+  };
+}
+/** QC: reconstruye un bioma y lanza una oleada viva con sus élites.
+ *  `wave` se fija para que los 7 biomas se midan con la MISMA horda; si no,
+ *  el contador de rondas crece entre capturas y la comparación de FPS es ruido. */
+function testEnemyWorld(worldId, wave = 4) {
+  previewWorld(worldId);
+  testGod(true);
+  testClearEnemies();
+  state.wave = Math.max(0, (wave | 0) - 1);
+  spawnWave();
+  return enemyFase2Diagnostics();
+}
+function testResetEnemyDiag() {
+  resetBoidsDiagnostics(); resetEliteDiagnostics();
+  return true;
+}
+function testEliteFor(worldId, id) {
+  const def = eliteForWorld(worldId);
+  if (!def) return null;
+  const sp = clearSpawn(player.position.x + 7, player.position.z - 6, 2);
+  const e = createEnemy(def.type, sp.x, sp.z, true, currentLevel.faction, undefined, def.spec);
+  if (!e) return null;
+  e.eliteKind = id || def.id;
+  e.spawn = 0; e.group.scale.setScalar(e.targetScale);
+  return { id: e.eliteKind, name: def.name, world: worldId, type: e.type, hp: Math.round(e.maxHp) };
+}
+/** QC A/B: activa/desactiva la sombra real de los hostiles para medir coste. */
+function testEnemyShadows(on = true) {
+  let n = 0;
+  for (const e of enemies) {
+    const cv = e.creature;
+    if (!cv) continue;
+    cv.visual.traverse(o => { if (o.isMesh) { o.castShadow = !!on && o === cv.shadowCaster; n++; } });
+  }
+  return n;
+}
+/** QC: mata la horda de golpe para verificar animaciones de muerte + corpses. */
+function testKillAllEnemies() {
+  let n = 0;
+  for (const e of [...enemies]) if (!e.dead && !e.phantom) { damageEnemy(e, 99999, false); n++; }
+  return n;
+}
+
+// --- Hooks de QC de la FASE 3 (solo automatización --bosses) ---------------
+function bossFase3Diagnostics() {
+  const b = enemies.find(e => e.type === 'boss' && !e.dead);
+  return {
+    db: bossDbDiagnostics(), models: bossModelDiagnostics(),
+    telegraphs: bossTelegraphs.length, hazards: bossHazards.length,
+    diag: { ...diagBoss },
+    boss: b ? {
+      id: b.kind.id, name: b.kind.name, title: b.kind.title, world: b.kind.world,
+      hp: Math.round(b.hp), maxHp: Math.round(b.maxHp), phase: b.phaseIdx,
+      abilities: b.kind.abilities, hasCreature: !!b.creature,
+      kitParts: (b.group.userData.kitParts || []).length,
+      telegraphT: +b.telegraphT.toFixed(2),
+      facing: +b.group.rotation.y.toFixed(3)
+    } : null,
+    fps: perf.fps, drawCalls: renderer.info.render.calls
+  };
+}
+/** QC: coloca al héroe delante del jefe y encuadra el combate para capturas. */
+function testBossCamera() {
+  const b = enemies.find(e => e.type === 'boss' && !e.dead);
+  if (!b) return null;
+  const p = b.group.position;
+  player.position.set(p.x, b.y || 0, p.z + 9);
+  state.py = b.y || 0;
+  setWorldView(10, -.18, 0);
+  hideBossBanner();
+  return {
+    pos: [p.x, p.y, p.z].map(n => +n.toFixed(2)), scale: +b.group.scale.x.toFixed(2),
+    visible: b.group.visible, children: b.group.children.length,
+    parts: (b.group.userData.kitParts || []).length
+  };
+}
+function testBossWorld(worldId, index = 0) {
+  previewWorld(worldId);
+  testGod(true); testClearEnemies();
+  const list = WORLD_BOSSES[worldId] || [];
+  const kind = list[Math.abs(index | 0) % Math.max(1, list.length)];
+  if (!kind) return null;
+  state.wave = 4;
+  const sp = clearSpawn(0, -18, 2.4);
+  const e = createEnemy('boss', sp.x, sp.z, false, currentLevel.faction, kind.id);
+  if (e) { e.spawn = 0; e.group.scale.setScalar(1); e.abilityTimer = 99; }
+  return bossFase3Diagnostics();
+}
+function testBossTelegraph(id) {
+  const b = enemies.find(e => e.type === 'boss' && !e.dead);
+  if (!b) return null;
+  if (id) { b.kind = { ...b.kind, abilities: [id, id, id] }; b.abilityIdx = 0; }
+  b.telegraphT = 0;
+  startBossCast(b);
+  const last = bossTelegraphs[bossTelegraphs.length - 1];
+  return {
+    id: b.telegraphId, t: +b.telegraphT.toFixed(2),
+    active: bossTelegraphs.length, shape: last ? last.shape : null
+  };
+}
+function testBossPhase(hpFrac = .49) {
+  const b = enemies.find(e => e.type === 'boss' && !e.dead);
+  if (!b) return null;
+  b.hp = b.maxHp * hpFrac;
+  updateBoss(b, .016, 10, new THREE.Vector3(0, 0, 1), 1);
+  return {
+    phaseIdx: b.phaseIdx, speed: +b.speed.toFixed(2),
+    abilityTimer: +b.abilityTimer.toFixed(2), phaseUps: diagBoss.phaseUps
+  };
+}
+function testBossCast(id, phase = 0) {
+  const b = enemies.find(e => e.type === 'boss' && !e.dead);
+  if (!b) return null;
+  b.phaseIdx = phase;
+  bossCast(b, id || b.kind.abilities[0]);
+  return { casts: diagBoss.casts, combos: diagBoss.combos, hazards: bossHazards.length };
+}
+function testBossDeath() {
+  const b = enemies.find(e => e.type === 'boss' && !e.dead);
+  if (!b) return null;
+  b.invuln = 0;
+  damageEnemy(b, 999999, false);
+  return {
+    chests: diagBoss.chests, hitstop: diagBoss.hitstop,
+    lootBoxes: lootBoxes.filter(x => x.bossChest).length, dead: b.dead
+  };
+}
+
 export {
   showUpgradeDraft, spawnWave, testDropLoot, testOpenLoot, testDropCompanion, testSpawn, testGrantWeapon, testAbility,
   testAddChips, testClearEnemies, testGod, getMap, getLootLevels, getState, getSynergies, openHub, renderHubTree,
@@ -5994,5 +6927,12 @@ export {
   testInstall, testElite, testEvolve, testDirector, getBuild, getPerf,
   testTurret, testMeteor, testGhost, testSpiral,   testEvolveAbility, testGrantRelic, testRelicHook,
   testCombat, testFire, testProjectileHit,
-  previewWorld, setWorldView, worldDiagnostics
+  previewWorld, setWorldView, worldDiagnostics,
+  getSkillDiagnostics, testGrant, testSkillCards, testChestCards, testLevelUp,
+  testOpenChest, testChooseCard, testCloseCards, testFreezeLevelCards,
+  testRoomClear, testAddXp, testBaseStat,
+  enemyFase2Diagnostics, testEnemyWorld, testResetEnemyDiag, testEliteFor,
+  testKillAllEnemies, testEnemyShadows,
+  bossFase3Diagnostics, testBossWorld, testBossCamera, testBossTelegraph,
+  testBossPhase, testBossCast, testBossDeath
 };

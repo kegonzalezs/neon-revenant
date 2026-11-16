@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; font-src 'self' data:;" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NEON//REVENANT — Estudio de Criaturas (Fase 1)</title>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+<style>
+  :root { color-scheme: dark; --ink:#e8f0f4; --dim:#7d909c; --accent:#6ce5c0; --amber:#ffc46b; --red:#ff6b6b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#080c10; color:var(--ink);
+    font-family:"Segoe UI",system-ui,sans-serif; }
+  #stage { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; }
+  #top { position:fixed; top:0; left:0; right:0; padding:18px 26px 14px;
+    background:linear-gradient(#080c10e8,#080c1000); pointer-events:none; z-index:3; }
+  #top h1 { margin:0; font-size:19px; letter-spacing:.20em; font-weight:700; }
+  #top h1 span { color:var(--accent); }
+  #top p { margin:5px 0 0; font-size:12px; color:var(--dim); letter-spacing:.06em; }
+  #status { position:fixed; top:20px; right:26px; z-index:3; font-size:12px; text-align:right;
+    color:var(--dim); line-height:1.7; }
+  #status b { color:var(--accent); font-weight:600; }
+  #bar { position:fixed; bottom:0; left:0; right:0; z-index:3; display:flex; gap:8px;
+    justify-content:center; flex-wrap:wrap; padding:14px 20px 18px;
+    background:linear-gradient(#080c1000,#080c10f2); }
+  button { font:inherit; font-size:11px; letter-spacing:.10em; padding:9px 15px; cursor:pointer;
+    color:var(--ink); background:#121b22; border:1px solid #2b3d47; border-radius:3px; }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+  button.danger:hover { border-color:var(--red); color:var(--red); }
+  #legend { position:fixed; bottom:74px; left:26px; z-index:3; font-size:11px; color:var(--dim); line-height:1.8; }
+  #legend em { color:var(--amber); font-style:normal; }
+  .tag { position:fixed; z-index:2; transform:translate(-50%,0); pointer-events:none;
+    text-align:center; font-size:10px; letter-spacing:.06em; white-space:nowrap;
+    background:rgba(8,12,16,.82); border:1px solid #233440; border-radius:3px;
+    padding:3px 8px; box-shadow:0 3px 12px #0008; }
+  .tag b { display:block; font-size:11px; font-weight:600; color:var(--ink); }
+  .tag i { font-style:normal; font-size:9px; }
+  .tag .mixer { color:var(--accent); }
+  .tag .retarget { color:var(--amber); }
+  .tag .proc { color:#9ab6ff; }
+  .tag .failed { color:var(--red); }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="top">
+  <h1>NEON<span>//</span>REVENANT — ESTUDIO DE CRIATURAS</h1>
+  <p>FASE 1 · PUENTE IPC + ANIMACIÓN REAL · modelos .glb / .gltf, cero primitivas</p>
+</div>
+<div id="status">cargando…</div>
+<div id="legend">
+  <em>CLIC</em> impacto (flash blanco 0.08 s) &nbsp;·&nbsp; <em>DOBLE CLIC</em> muerte con humo<br />
+  <em>1</em> reposo &nbsp; <em>2</em> mover &nbsp; <em>3</em> atacar &nbsp; <em>4</em> impacto &nbsp; <em>5</em> morir &nbsp; <em>0</em> reiniciar
+</div>
+<div id="bar">
+  <button data-cmd="idle">1 · REPOSO</button>
+  <button data-cmd="move">2 · MOVER</button>
+  <button data-cmd="attack">3 · ATACAR</button>
+  <button data-cmd="hit">4 · IMPACTO</button>
+  <button data-cmd="die" class="danger">5 · MORIR</button>
+  <button data-cmd="reset">0 · REINICIAR</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { creatureDiagnostics, createCreature, disposeAllCreatureTemplates } from './src/CreatureModels.js';
+
+const CUTE = 'quaternius-cute/Cute Animated Monsters - Aug 2020/glTF/';
+const ULT = 'quaternius-ultimate/Ultimate Monsters/Big/glTF/';
+const KAY = 'kaykit-skeletons/KayKit_Skeletons_1.1_FREE/';
+const SPECS = [
+  { name:'Abeja · Cute',      root:'enemies', file:CUTE+'Bee.gltf',             h:1.8, flying:true },
+  { name:'Fantasma · Cute',   root:'enemies', file:CUTE+'Ghost.gltf',           h:1.8, flying:true },
+  { name:'Blocky A · Kenney', root:'enemies', file:'kenney-blocky/Models/GLB format/character-a.glb', h:1.8 },
+  { name:'Esqueleto · KayKit',root:'enemies', file:KAY+'characters/gltf/Skeleton_Warrior.glb', h:1.8,
+    rig:[KAY+'Animations/gltf/Rig_Medium/Rig_Medium_General.glb',
+         KAY+'Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb'] },
+  { name:'Yeti · Ultimate',   root:'bosses',  file:ULT+'Yeti.gltf',             h:2.3 },
+  { name:'Demonio · Ultimate',root:'bosses',  file:ULT+'Demon.gltf',            h:2.3 },
+  { name:'Zombi · Graveyard', root:'bosses',  file:'kenney-graveyard/Models/GLB format/character-zombie.glb', h:1.8 },
+  { name:'Carreta · Fantasy', root:'bosses',  file:'kenney-fantasy-town/Models/GLB format/cart.glb', h:1.5 }
+];
+
+const stage = document.getElementById('stage');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080c10);
+scene.fog = new THREE.Fog(0x080c10, 18, 42);
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, .1, 120);
+camera.position.set(0, 6.4, 17.5);
+camera.lookAt(0, 1.0, -1.0);
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = .95;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+
+// Luz mate equilibrada: sin blancos puros ni sombras negras (comodidad visual).
+scene.add(new THREE.HemisphereLight(0x9fb6c8, 0x35404a, 1.15));
+const key = new THREE.DirectionalLight(0xffe9cf, 1.55);
+key.position.set(-6, 12, 8);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.left = -14; key.shadow.camera.right = 14;
+key.shadow.camera.top = 14; key.shadow.camera.bottom = -14;
+key.shadow.bias = -.0006;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x74a8c8, .55);
+rim.position.set(7, 6, -9);
+scene.add(rim);
+// Shadow-catcher: NO es un cuerpo de enemigo, solo recibe sombras.
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity:.30 }));
+floor.rotation.x = -Math.PI/2; floor.position.y = .001; floor.receiveShadow = true;
+scene.add(floor);
+const grid = new THREE.GridHelper(40, 40, 0x1d323c, 0x14232b);
+grid.position.y = .002; scene.add(grid);
+
+const creatures = [];
+const events = [];
+const onEvent = (type) => events.push(type);
+let mode = 'idle';
+let fps = 0, frames = 0, fpsT = performance.now();
+
+// Mide si la animación mueve ALGO de verdad. Ojo: los Kenney (Blocky,
+// Graveyard) NO tienen skeleton: sus clips animan nodos sueltos por nombre.
+// Medir solo `skeleton.bones` daba 0 en esos modelos aunque sí se movieran.
+function poseSignature(c) {
+  if (!c || c.hidden) return 0;
+  let sum = 0, n = 0;
+  c.visual.traverse(o => {
+    if (!o.skeleton) return;
+    for (const b of o.skeleton.bones) { sum += b.quaternion.x + b.quaternion.y*2 + b.quaternion.z*3; n++; }
+  });
+  if (!n && c.limbs.length) {
+    for (const l of c.limbs) { sum += l.node.rotation.x; n++; }
+  }
+  if (!n) {
+    c.visual.traverse(o => {
+      if (o === c.visual) return;
+      sum += o.rotation.x + o.rotation.y*2 + o.rotation.z*3 +
+             o.position.x + o.position.y*2 + o.position.z*3 + o.scale.x; n++;
+    });
+  }
+  // La capa procedural mueve el grupo `visual` completo (bobbing / sway):
+  // se suma SIEMPRE para que una pieza sin jerarquía también cuente como viva.
+  sum += c.visual.rotation.z*10 + c.visual.position.y*10 + c.root.rotation.z*10; n++;
+  return +(sum/n).toFixed(5);
+}
+
+function makeTag(c, i, failed) {
+  const el = document.createElement('div');
+  el.className = 'tag';
+  const kind = failed ? '<i class="failed">FALLO DE CARGA</i>'
+    : c.procedural ? '<i class="proc">PROCEDURAL</i>'
+    : c.tpl.retargeted ? '<i class="retarget">RETARGET 23 HUESOS</i>'
+    : '<i class="mixer">ANIMATIONMIXER</i>';
+  el.innerHTML = '<b>'+SPECS[i].name+'</b>'+kind;
+  document.body.appendChild(el);
+  return el;
+}
+
+async function boot() {
+  for (let i = 0; i < SPECS.length; i++) {
+    const s = SPECS[i];
+    try {
+      const c = await createCreature(s, { targetHeight:s.h, onEvent });
+      const row = Math.floor(i/4), col = i%4;
+      // La fila trasera va escalonada media columna: así ningún modelo tapa
+      // al de delante (antes Ghost ocultaba por completo a Demonio).
+      c.root.position.set((col-1.5)*4.3 + (row ? 2.15 : 0), 0, row===0 ? 3.0 : -4.2);
+      c.root.rotation.y = Math.PI; // glTF mira +Z; la cámara está en +Z
+      c.baseY = 0;
+      if (s.flying) { c.root.position.y = 1.0; c.baseY = 1.0; }
+      scene.add(c.root);
+      c.spec = s; c.tag = makeTag(c, i, false);
+      c.lastPose = poseSignature(c); c.poseChanges = 0;
+      creatures.push(c);
+    } catch (e) {
+      console.error('MODELS_LOAD_FAIL ' + s.name + ': ' + (e?.message || e));
+      const tag = makeTag({ procedural:false, tpl:{retargeted:0} }, i, true);
+      tag.style.left = '50%'; tag.style.top = '50%';
+      creatures.push({ failed:true, spec:s, tag, hidden:false, dead:false,
+        procedural:false, tpl:{roles:{},key:'',retargeted:0,animated:false,minY:0},
+        root:new THREE.Object3D(), visual:new THREE.Object3D(), limbs:[],
+        poseChanges:0, update(){}, hit(){}, attack(){}, die(){}, charge(){}, dispose(){} });
+    }
+  }
+  window.__NR_MODELS.ready = true;
+  const d = window.__NR_MODELS.diag();
+  console.log('MODELS_READY ' + JSON.stringify(d));
+  document.getElementById('status').innerHTML =
+    '<b>'+d.loaded+'/'+SPECS.length+'</b> MODELOS<br />'+
+    d.mixers+' CON MIXER · '+d.retargeted+' RETARGET<br />'+
+    d.fallbacks+' PROCEDURALES · <b>'+fps+'</b> FPS';
+}
+
+function command(cmd) {
+  if (cmd === 'reset') {
+    for (const c of creatures) { if (!c.failed) c.dispose(); }
+    creatures.length = 0;
+    document.querySelectorAll('.tag').forEach(t => t.remove());
+    disposeAllCreatureTemplates();
+    mode = 'idle';
+    window.__NR_MODELS.ready = false;
+    boot();
+    return;
+  }
+  if (cmd === 'idle' || cmd === 'move') { mode = cmd; return; }
+  for (const c of creatures) {
+    if (c.failed || c.dead) continue;
+    if (cmd === 'hit') c.hit();
+    else if (cmd === 'die') c.die();
+    else if (cmd === 'attack') c.charge(() => c.attack());
+  }
+}
+
+window.__NR_MODELS = {
+  ready:false,
+  diag() {
+    return {
+      loaded: creatures.filter(c => !c.failed).length,
+      total: SPECS.length,
+      mixers: creatures.filter(c => c.usesMixer).length,
+      fallbacks: creatures.filter(c => !c.failed && c.procedural).length,
+      retargeted: creatures.filter(c => !c.failed && c.tpl.retargeted > 0).length,
+      retargetClips: creatures.filter(c => !c.failed).reduce((n,c) => n + (c.tpl.retargeted||0), 0),
+      poseChanges: creatures.map(c => c.poseChanges||0),
+      states: creatures.map(c => ({
+        name:c.spec.name, failed:!!c.failed, animated:!!c.tpl.animated,
+        procedural:!!c.procedural, roles:c.clipRoles || Object.keys(c.tpl.roles||{}),
+        flash:+(c.flashT||0).toFixed(3), charge:+(c.chargeT||0).toFixed(3),
+        dead:!!c.dead, hidden:!!c.hidden, poseChanges:c.poseChanges||0
+      })),
+      events: events.slice(-24),
+      fps,
+      lib: creatureDiagnostics()
+    };
+  },
+  command, cmd: command,
+  get fps() { return fps; }
+};
+
+// --- interacción ----------------------------------------------------------
+const ray = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+function pick(ev) {
+  mouse.set(ev.clientX/innerWidth*2-1, -(ev.clientY/innerHeight)*2+1);
+  ray.setFromCamera(mouse, camera);
+  const hits = ray.intersectObjects(creatures.filter(c=>!c.failed).map(c=>c.root), true);
+  if (!hits.length) return null;
+  let o = hits[0].object;
+  while (o && !creatures.includes(o)) o = o.parent;
+  return o;
+}
+renderer.domElement.addEventListener('click', e => { const c = pick(e); if (c && !c.dead) c.hit(); });
+renderer.domElement.addEventListener('dblclick', e => { const c = pick(e); if (c && !c.dead) c.die(); });
+document.querySelectorAll('#bar button').forEach(b => b.addEventListener('click', () => command(b.dataset.cmd)));
+addEventListener('keydown', e => {
+  const map = { '1':'idle','2':'move','3':'attack','4':'hit','5':'die','0':'reset' };
+  if (map[e.key]) command(map[e.key]);
+});
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+addEventListener('error', e => console.error('RUNTIME_ERROR: ' + e.message));
+addEventListener('unhandledrejection', e => console.error('RUNTIME_ERROR: ' + (e.reason?.message || e.reason)));
+
+// --- bucle ----------------------------------------------------------------
+const clock = new THREE.Clock();
+const pv = new THREE.Vector3();
+function tick() {
+  requestAnimationFrame(tick);
+  const dt = Math.min(.05, clock.getDelta());
+  for (const c of creatures) {
+    if (c.failed) continue;
+    c.update(dt, { moving: mode === 'move', flying: !!c.spec.flying, speed:5.5, speedScale:1 });
+    const p = poseSignature(c);
+    if (Math.abs(p - c.lastPose) > 1e-4) c.poseChanges++;
+    c.lastPose = p;
+    c.root.getWorldPosition(pv); pv.y += (c.tpl.height || 2) * (c.root.scale.x || 1) + .35;
+    pv.project(camera);
+    c.tag.style.left = ((pv.x*.5+.5)*innerWidth) + 'px';
+    c.tag.style.top  = ((-pv.y*.5+.5)*innerHeight) + 'px';
+    c.tag.style.opacity = pv.z < 1 ? '1' : '0';
+  }
+  renderer.render(scene, camera);
+  frames++;
+  const now = performance.now();
+  if (now - fpsT >= 1000) {
+    fps = Math.round(frames*1000/(now-fpsT)); frames = 0; fpsT = now;
+    const d = window.__NR_MODELS.diag();
+    const st = document.getElementById('status');
+    if (st && window.__NR_MODELS.ready) st.innerHTML =
+      '<b>'+d.loaded+'/'+d.total+'</b> MODELOS<br />'+d.mixers+' CON MIXER · '+
+      d.retargeted+' RETARGET<br />'+d.fallbacks+' PROCEDURALES · <b>'+fps+'</b> FPS';
+  }
+}
+tick();
+boot();
+</script>
+</body>
+</html>

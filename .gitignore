@@ -21,6 +21,16 @@ smoke-log.txt
 # generar los assets optimizados de assets/worlds/. Se descarga aparte.
 kenney_src/
 
+# Fuentes de conversion de modelos: el IPC de main.cjs solo sirve glb/gltf/bin
+# y texturas a runtime. FBX/OBJ/MTL son material intermedio (~143 MB), no se usan.
+*.fbx
+*.obj
+*.mtl
+
+# Lanzador local del estudio de criaturas: contiene una ruta absoluta a la
+# instalacion de Node de este equipo. Usar: node scripts/start.cjs --models-preview
+ESTUDIO-CRIATURAS.cmd
+
 # Lanzador local: contiene una ruta absoluta a la instalacion de WorkBuddy.
 # Para clonar el proyecto se usa "npm start".
 JUGAR.cmd

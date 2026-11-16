@@ -17,5 +17,9 @@ contextBridge.exposeInMainWorld('desktop', {
   // Todo se entrega como binario o data URL: cero peticiones de red.
   loadWeaponGLBs: () => ipcRenderer.invoke('nr:load-weapon-glbs'),
   loadVfxSprites: (names) => ipcRenderer.invoke('nr:load-vfx-sprites', names),
-  loadSfxBank: () => ipcRenderer.invoke('nr:load-sfx-bank')
+  loadSfxBank: () => ipcRenderer.invoke('nr:load-sfx-bank'),
+  // Fase 1: modelos .glb/.gltf reales de criaturas. root es la enum
+  // 'enemies' | 'bosses'; names son rutas relativas dentro de esa carpeta.
+  // El proceso principal valida cada ruta antes de leer disco.
+  loadModelPack: (root, names) => ipcRenderer.invoke('nr:load-model-pack', root, names)
 });

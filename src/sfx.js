@@ -70,8 +70,11 @@ export function playSfx(name, opts = {}) {
   const src = ctx.createBufferSource();
   const gain = ctx.createGain();
   src.buffer = buf;
-  src.playbackRate.value = (opts.rate ?? 1) *
-    (opts.pitch === false ? 1 : .9 + Math.random() * .2);
+  // pitch numérico = valor fijo (pactos malditos a 0.65); `false` = sin
+  // variación; por defecto varía 0.9–1.1 para que los SFX no cansen al oído.
+  const pitch = typeof opts.pitch === 'number' ? opts.pitch
+    : (opts.pitch === false ? 1 : .9 + Math.random() * .2);
+  src.playbackRate.value = (opts.rate ?? 1) * pitch;
   gain.gain.value = opts.volume ?? .55;
   src.connect(gain); gain.connect(master);
   voices++;
